@@ -41,38 +41,48 @@ def root():
 def get_config():
     """Returns origin metadata for frontend initialization."""
     return {
-        "hotel_name": settings.HOTEL_NAME,
-        "address": settings.HOTEL_ADDRESS,
-        "coordinates": [settings.HOTEL_LON, settings.HOTEL_LAT],
+        "origin_name": settings.ORIGIN_NAME,
+        "address": settings.ORIGIN_ADDRESS,
+        "coordinates": [settings.ORIGIN_LON, settings.ORIGIN_LAT],
         "default_miles": settings.DEFAULT_RANGE_MILES,
         "max_miles": 5,
     }
 
 
 @app.get("/api/area")
-async def get_area(miles: float = 3):
+async def get_area(miles: float = 3, origin: str | None = None):
     """Returns cached GeoJSON FeatureCollection for the drivable service area.
-    Prefers route-based polygon (from file cache) if present; falls back to isochrones."""
-    # Try route-based polygon first (file or in-memory)
-    route_based = get_route_based_polygon(miles)
-    if route_based:
-        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        for feat in route_based.get("features", []):
-            feat.setdefault("properties", {})["computed_at"] = now
-        return route_based
+    Accepts optional origin=lon,lat; defaults to configured origin.
+    Prefers route-based polygon (from file cache) for default origin; falls back to isochrones."""
+    if origin:
+        try:
+            origin_lon, origin_lat = _parse_to_param(origin)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid origin: {e}")
+        is_default_origin = False
+    else:
+        origin_lon = settings.ORIGIN_LON
+        origin_lat = settings.ORIGIN_LAT
+        is_default_origin = True
 
-    # Fallback: isochrone polygon
+    # Try route-based polygon only for default origin
+    if is_default_origin:
+        route_based = get_route_based_polygon(miles)
+        if route_based:
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            for feat in route_based.get("features", []):
+                feat.setdefault("properties", {})["computed_at"] = now
+            return route_based
+
     profile = "driving-car"
-    cache_key = f"area_{miles}_{profile}"
+    cache_key = f"area_{miles}_{profile}_{origin_lon}_{origin_lat}"
     cached = cache_get(cache_key)
     if cached:
         return cached
 
     distance_meters = miles_to_meters(miles)
     try:
-        result = await get_isodistance(
-            settings.HOTEL_LON, settings.HOTEL_LAT, distance_meters
-        )
+        result = await get_isodistance(origin_lon, origin_lat, distance_meters)
     except ValueError as e:
         msg = str(e)
         if "rate limited" in msg.lower():
@@ -109,20 +119,45 @@ def _parse_to_param(to: str) -> tuple[float, float]:
 
 
 @app.get("/api/route")
-async def get_route(to: str):
-    """Returns shortest route from origin to destination and within-limit verdict."""
+async def get_route(
+    to: str,
+    origin: str | None = None,
+    via: str | None = None,
+    miles: float | None = None,
+):
+    """Returns shortest route from origin to destination and within-limit verdict.
+    Accepts optional origin=lon,lat and via=lon,lat (waypoint). Defaults to configured origin."""
+    limit_miles = miles if miles is not None else settings.DEFAULT_RANGE_MILES
     try:
         dest_lon, dest_lat = _parse_to_param(to)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    if origin:
+        try:
+            origin_lon, origin_lat = _parse_to_param(origin)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid origin: {e}")
+    else:
+        origin_lon = settings.ORIGIN_LON
+        origin_lat = settings.ORIGIN_LAT
+
+    via_lon, via_lat = None, None
+    if via:
+        try:
+            via_lon, via_lat = _parse_to_param(via)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid via: {e}")
+
     try:
         result = await get_shortest_route(
-            settings.HOTEL_LON,
-            settings.HOTEL_LAT,
+            origin_lon,
+            origin_lat,
             dest_lon,
             dest_lat,
-            limit_miles=settings.DEFAULT_RANGE_MILES,
+            limit_miles=limit_miles,
+            via_lon=via_lon,
+            via_lat=via_lat,
         )
     except ValueError as e:
         msg = str(e)

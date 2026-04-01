@@ -6,7 +6,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
 export interface Config {
-  hotel_name: string;
+  origin_name: string;
   address: string;
   coordinates: [number, number];
   default_miles: number;
@@ -80,15 +80,39 @@ export async function getConfig(): Promise<Config> {
   return res.json();
 }
 
-export async function getArea(miles: number = 3): Promise<AreaResponse> {
-  const res = await fetch(`${API_BASE}/area?miles=${miles}`);
+export async function getArea(
+  miles: number = 3,
+  originLon?: number,
+  originLat?: number,
+): Promise<AreaResponse> {
+  const params = new URLSearchParams({ miles: String(miles) });
+  if (originLon !== undefined && originLat !== undefined) {
+    params.set("origin", `${originLon},${originLat}`);
+  }
+  const res = await fetch(`${API_BASE}/area?${params}`);
   if (!res.ok) throw new Error(`Area failed: ${res.status}`);
   return res.json();
 }
 
-export async function getRoute(lon: number, lat: number): Promise<RouteResponse> {
+export async function getRoute(
+  destLon: number,
+  destLat: number,
+  miles?: number,
+  originLon?: number,
+  originLat?: number,
+  viaLon?: number,
+  viaLat?: number,
+): Promise<RouteResponse> {
+  const params = new URLSearchParams({ to: `${destLon},${destLat}` });
+  if (miles !== undefined) params.set("miles", String(miles));
+  if (originLon !== undefined && originLat !== undefined) {
+    params.set("origin", `${originLon},${originLat}`);
+  }
+  if (viaLon !== undefined && viaLat !== undefined) {
+    params.set("via", `${viaLon},${viaLat}`);
+  }
   const res = await fetchWithTimeout(
-    `${API_BASE}/route?to=${lon},${lat}`,
+    `${API_BASE}/route?${params}`,
     ROUTE_TIMEOUT_MS
   );
   if (!res.ok) {

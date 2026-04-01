@@ -1,0 +1,8 @@
+# Railway config for 3-mile-drive frontend (monorepo: root dir apps/web)
+[build]
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/"
+healthcheckTimeout = 30

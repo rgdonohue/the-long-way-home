@@ -1,76 +1,77 @@
-# PRD — 3-Mile Drive Map
+# PRD - 3-Mile Drive Map
 
 ## Summary
 
-A web map centered on the **New Mexico State Capitol** (411 South Capitol St, Santa Fe, NM 87501) showing the maximum drivable area within **3 miles of street-network distance** from the origin, plus tap-to-check routing for any destination.
+3-Mile Drive Map is a Santa Fe routing tool for checking whether a destination is within a selected driving-distance threshold from a user-chosen origin.
 
-The core concept is a **service area polygon** (equidistant / isodistance) computed by expanding outward along the road graph until the cumulative distance threshold is reached. This is fundamentally different from a planar buffer (circle).
+The current product flow is map-first:
+
+1. click to set an origin
+2. view the service area for the selected mileage preset
+3. click to set a destination
+4. view the shortest route, distance, estimated drive time, and within-threshold verdict
+
+The map opens centered on a configured default location, but the active origin is chosen by the user.
 
 ## Problem
 
-Users want to explore what's within a 3-mile driving radius from a central point in Santa Fe. There's no easy way to visualize the drivable area or verify if a specific destination is within range without manually checking routes.
+Users need a fast way to answer a practical question:
 
-## The "3 miles" rule — defined precisely
+> If I start here, is that destination within 1, 3, or 5 miles by road?
 
-- **Rule:** A destination is within range if the **shortest-path driving distance ≤ 3.0 miles** (4828.032 meters).
-- This is **shortest distance**, not fastest time. Many routing engines default to "fastest," which can produce a longer-mileage route. The routing provider must be configured for **shortest distance preference**.
-- The polygon boundary is a visual estimate of coverage. The **route check to a specific destination is the authoritative verdict**. The product must communicate this clearly.
+Straight-line distance is misleading. The product needs to use the street network and show the actual route-based verdict.
+
+## Product rule
+
+- A destination is within range if the shortest-path driving distance is less than or equal to the selected mileage threshold.
+- Threshold presets currently supported in the UI: `1`, `3`, and `5` miles.
+- The route check is authoritative.
+- The polygon is a visual guide and can disagree near the boundary.
 
 ## Users
 
-1. **General users** on mobile — exploring what's within 3 miles of the Capitol
-2. **Desktop users** — checking specific destinations and understanding the coverage area
-3. **Developers/planners** — understanding the reachable area from a central point
+1. Users exploring what is reachable from a selected point in Santa Fe.
+2. Users comparing destinations against a simple mileage rule.
+3. Developers evaluating routing, service-area, and map interaction behavior.
 
 ## User Stories
 
-1. As a user, I see the origin pinned and a shaded boundary showing what's within 3 miles driving distance.
-2. As a user, I tap a destination on the map and instantly see: a route line from the origin, driving distance in miles, and whether it's within the 3-mile range (Yes/No).
-3. As a user, I can share a link that opens the map and shows the boundary.
+1. As a user, I can click the map to choose my origin instead of being forced to use a fixed one.
+2. As a user, I can click a second point to choose a destination and immediately see the shortest driving route.
+3. As a user, I can see the route distance, estimated drive time, and whether that route is within the chosen mileage threshold.
+4. As a user, I can switch between `1`, `3`, and `5` mile presets.
+5. As a user, I can reset and start over quickly.
 
-## Requirements
+## MVP Requirements
 
-### Must-have (MVP)
+- Map centers on the configured default location at load
+- First click sets origin
+- Dynamic service-area polygon for the selected origin and mileage preset
+- Second click sets destination
+- Shortest driving route from origin to destination
+- Verdict panel with distance, duration, and within-limit result
+- Presets for `1`, `3`, and `5` miles
+- Responsive layout for desktop and mobile
 
-- Map loads centered on origin with styled marker
-- Service area polygon for 3.0 miles driving distance (network, not planar)
-- **Tap-to-check destination**: click anywhere on the map to see route polyline, distance in miles, and within-limit verdict (Yes/No)
-- Clear legend / copy: "3-mile driving distance (street network), not straight-line"
-- Responsive design (mobile + desktop)
-- Clean, elegant UI
+## Current Limitations
 
-### Should-have
+- No address search or geocoder
+- No shareable deep links
+- Driving mode only
+- Polygon can differ from route truth near edges
+- The experience is Santa Fe-focused by default because the initial map center is configured there
 
-- Distance ring toggles: 1-mile, 2-mile, 3-mile presets
-- "Reset view" button
-- Caching so polygon is not recomputed on every page load
+## Non-goals
 
-### Nice-to-have
-
-- Curated POI markers within the boundary (Plaza, Canyon Road, Railyard, Museum Hill, restaurants, galleries)
-- Geocoder / address search: user types a destination name and gets the route check
-- Print-friendly view
-- QR code generator for sharing
-
-## Non-goals (for now)
-
-- Live traffic consideration
-- Multi-origin (other locations)
-- User accounts or login
-- Isochrone (time-based) — only isodistance
+- Live traffic
+- Saved trips or accounts
+- Multi-stop routing
+- Alternate travel modes
+- Recommendation or detour logic
 
 ## Success Criteria
 
-- Page loads and polygon draws in < 2 seconds on decent Wi-Fi (after cache warm)
-- Users can check "is X within range?" in < 10 seconds using tap-to-check
-- Zero ambiguity: users understand this is network distance, not straight-line
-
-## Risks & Edge Cases
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Isochrone polygon doesn't perfectly match point-to-point routing | User told "yes" by polygon but "no" by route check | Treat route as authoritative. Polygon is visual estimate. Communicate this in UI copy. |
-| OSM road data gaps in Santa Fe | Inaccurate polygon boundary | Visual QA against satellite imagery. Fix in OSM if needed. |
-| ORS API rate limits (500 req/day free tier) | Service interruption | Cache polygon aggressively (24hr TTL). Route checks are lightweight. Consider self-hosted Valhalla as escape hatch. |
-| Origin coordinate accuracy | Polygon computed from wrong origin | Hardcode verified coordinates via env var. Don't rely on runtime geocoding. |
-| "3 miles" ambiguity (one-way vs round-trip) | Policy confusion | State explicitly in UI: one-way distance from origin. |
+- User can complete an origin-to-destination check in two map clicks
+- Verdict is understandable without reading technical docs
+- Preset switching is immediate and predictable
+- Distance policy remains based on shortest route mileage, not travel time

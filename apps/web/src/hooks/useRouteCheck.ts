@@ -4,6 +4,7 @@ import { getRoute, type RouteResponse } from "../lib/api";
 export interface RouteCheckResult {
   route: RouteResponse["route"];
   distance_miles: number;
+  duration_seconds: number;
   within_limit: boolean;
 }
 
@@ -12,15 +13,22 @@ export function useRouteCheck() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const checkRoute = useCallback(async (lon: number, lat: number) => {
+  const checkRoute = useCallback(async (
+    destLon: number,
+    destLat: number,
+    miles?: number,
+    originLon?: number,
+    originLat?: number,
+  ) => {
     setError(null);
     setIsLoading(true);
 
     try {
-      const data = await getRoute(lon, lat);
+      const data = await getRoute(destLon, destLat, miles, originLon, originLat);
       setResult({
         route: data.route,
         distance_miles: data.distance_miles,
+        duration_seconds: data.duration_seconds,
         within_limit: data.within_limit,
       });
       return data;

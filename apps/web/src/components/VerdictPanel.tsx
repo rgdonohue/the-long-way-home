@@ -1,17 +1,61 @@
+import type { NearbyStop } from "../lib/nearbyStop";
+import type { PlaceCategory } from "../data/places";
+import { StopCategorySelector } from "./StopCategorySelector";
+
+const CATEGORY_LABELS: Record<PlaceCategory, string> = {
+  history: "Historic",
+  art: "Art",
+  food: "Food & Drink",
+  scenic: "Scenic",
+  culture: "Culture",
+};
+
 interface VerdictPanelProps {
   distance_miles: number;
+  duration_seconds: number;
   within_limit: boolean;
+  limit_miles: number;
   isLoading?: boolean;
   error?: string | null;
   onReset: () => void;
+  nearbyStop?: NearbyStop | null;
+  onRouteViaStop?: (() => void) | null;
+  detourLoading?: boolean;
+  showingDetour?: boolean;
+  shortestRoute?: {
+    distance_miles: number;
+    duration_seconds: number;
+    within_limit: boolean;
+  } | null;
+  onBackToShortest?: (() => void) | null;
+  detourPreview?: { extra_miles: number; within_limit: boolean } | null;
+  stopCategory?: PlaceCategory | null;
+  onCategoryChange?: ((cat: PlaceCategory | null) => void) | null;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return "< 1 min";
+  const mins = Math.round(seconds / 60);
+  return `${mins} min`;
 }
 
 export function VerdictPanel({
   distance_miles,
+  duration_seconds,
   within_limit,
+  limit_miles,
   isLoading = false,
   error = null,
   onReset,
+  nearbyStop = null,
+  onRouteViaStop = null,
+  detourLoading = false,
+  showingDetour = false,
+  shortestRoute = null,
+  onBackToShortest = null,
+  detourPreview = null,
+  stopCategory = null,
+  onCategoryChange = null,
 }: VerdictPanelProps) {
   const accentColor = within_limit ? "var(--route-within)" : "var(--route-outside)";
 
@@ -30,24 +74,31 @@ export function VerdictPanel({
         role="region"
         aria-label="Route check result"
       >
-        <h3 className="verdict-panel__title">📍 Selected Destination</h3>
+        <h3 className="verdict-panel__title">📍 Route Result</h3>
         <p className="verdict-panel__message" aria-live="polite">
           {message}
         </p>
-        <button
-          type="button"
-          className="verdict-panel__reset"
-          onClick={onReset}
-        >
-          Reset View
-        </button>
+        <div className="verdict-panel__actions">
+          <button
+            type="button"
+            className="verdict-panel__reset"
+            onClick={onReset}
+          >
+            Reset View
+          </button>
+        </div>
       </div>
     );
   }
 
   const verdictText = within_limit
-    ? "Within 3-mile range"
-    : "Outside 3-mile range";
+    ? `Within ${limit_miles}-mile range`
+    : `Outside ${limit_miles}-mile range`;
+
+  const title =
+    showingDetour && nearbyStop
+      ? `Via ${nearbyStop.place.name}`
+      : "Selected Destination";
 
   return (
     <div
@@ -57,7 +108,7 @@ export function VerdictPanel({
       aria-live="polite"
       style={{ "--verdict-accent": accentColor } as React.CSSProperties}
     >
-      <h3 className="verdict-panel__title">📍 Selected Destination</h3>
+      <h3 className="verdict-panel__title">📍 {title}</h3>
 
       {isLoading ? (
         <p className="verdict-panel__loading">Computing route…</p>
@@ -67,6 +118,9 @@ export function VerdictPanel({
             Distance:{" "}
             <span className="verdict-panel__value tabular-nums">
               {distance_miles.toFixed(1)} miles
+            </span>
+            <span className="verdict-panel__duration">
+              {" "}· {formatDuration(duration_seconds)} drive
             </span>
           </p>
           <p className="verdict-panel__verdict" aria-label={verdictText}>
@@ -80,7 +134,7 @@ export function VerdictPanel({
                 <span className="verdict-panel__icon" aria-hidden>❌</span>{" "}
                 {verdictText}
                 <span className="verdict-panel__note">
-                  {" "}— Spots inside the shaded area can exceed 3 mi by road
+                  {" "}— Spots inside the shaded area can exceed {limit_miles} mi by road
                 </span>
               </>
             )}
@@ -88,13 +142,98 @@ export function VerdictPanel({
         </>
       )}
 
-      <button
-        type="button"
-        className="verdict-panel__reset"
-        onClick={onReset}
-      >
-        Reset View
-      </button>
+      {/* Comparison with shortest route (detour mode) */}
+      {showingDetour && shortestRoute && !isLoading && (
+        <div className="verdict-panel__comparison">
+          <p className="verdict-panel__comparison-shortest">
+            Shortest: {shortestRoute.distance_miles.toFixed(1)} mi ·{" "}
+            {formatDuration(shortestRoute.duration_seconds)}
+          </p>
+          <p className="verdict-panel__comparison-delta">
+            +{Math.max(0, distance_miles - shortestRoute.distance_miles).toFixed(1)} mi
+            {" "}· +{formatDuration(Math.max(0, duration_seconds - shortestRoute.duration_seconds))} added
+          </p>
+        </div>
+      )}
+
+      {/* Nearby stop suggestion (shortest mode only) */}
+      {!showingDetour && !isLoading && (
+        <div className="verdict-panel__stop">
+          <p className="verdict-panel__stop-label">Along the way</p>
+          {onCategoryChange && (
+            <StopCategorySelector selected={stopCategory ?? null} onChange={onCategoryChange} />
+          )}
+          {nearbyStop ? (
+            <>
+              <p className="verdict-panel__stop-name">
+                {nearbyStop.place.name}
+                <span className="verdict-panel__stop-category">
+                  {CATEGORY_LABELS[nearbyStop.place.category]}
+                </span>
+              </p>
+              <p className="verdict-panel__stop-desc">
+                {nearbyStop.place.description}
+              </p>
+              <p
+                className="verdict-panel__stop-proximity"
+                style={
+                  detourPreview
+                    ? {
+                        color: detourPreview.within_limit
+                          ? "var(--sage)"
+                          : "var(--route-outside)",
+                        fontWeight: 500,
+                      }
+                    : undefined
+                }
+              >
+                {detourPreview
+                  ? `+${Math.max(0, detourPreview.extra_miles).toFixed(1)} mi via this stop · ${detourPreview.within_limit ? `still within ${limit_miles}-mi range` : `exceeds ${limit_miles}-mi range`}`
+                  : detourLoading
+                    ? "Checking detour…"
+                    : nearbyStop.distanceMiles < 0.1
+                      ? "Right along your route"
+                      : `${nearbyStop.distanceMiles.toFixed(1)} mi from route`}
+              </p>
+              {onRouteViaStop && (
+                <button
+                  type="button"
+                  className="verdict-panel__via-btn"
+                  onClick={onRouteViaStop}
+                  disabled={detourLoading}
+                >
+                  {detourLoading ? "Computing…" : "Route via this stop"}
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="verdict-panel__stop-none">
+              {stopCategory
+                ? `No ${CATEGORY_LABELS[stopCategory].toLowerCase()} spots within 1 mile of this route`
+                : "No stops within 1 mile of this route"}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="verdict-panel__actions">
+        {onBackToShortest && (
+          <button
+            type="button"
+            className="verdict-panel__reset"
+            onClick={onBackToShortest}
+          >
+            Shortest route
+          </button>
+        )}
+        <button
+          type="button"
+          className="verdict-panel__reset"
+          onClick={onReset}
+        >
+          Reset View
+        </button>
+      </div>
     </div>
   );
 }

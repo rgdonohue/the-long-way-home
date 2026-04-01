@@ -34,8 +34,8 @@ async def main() -> None:
 
     print("Generating route-based 3-mile polygon (24 spokes, ~240 ORS calls)...")
     result = await generate_route_based_polygon(
-        settings.HOTEL_LON,
-        settings.HOTEL_LAT,
+        settings.ORIGIN_LON,
+        settings.ORIGIN_LAT,
         num_spokes=24,
         concurrency=6,
     )

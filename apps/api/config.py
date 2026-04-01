@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     )
 
     ORS_API_KEY: str = ""
-    HOTEL_NAME: str = "New Mexico State Capitol"
-    HOTEL_ADDRESS: str = "411 South Capitol St, Santa Fe, NM 87501"
-    HOTEL_LON: float = -105.9384
-    HOTEL_LAT: float = 35.6824
+    ORIGIN_NAME: str = "New Mexico State Capitol"
+    ORIGIN_ADDRESS: str = "411 South Capitol St, Santa Fe, NM 87501"
+    ORIGIN_LON: float = -105.9384
+    ORIGIN_LAT: float = 35.6824
     DEFAULT_RANGE_MILES: float = 3
     CACHE_TTL_HOURS: int = 24
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
