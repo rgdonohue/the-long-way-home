@@ -607,7 +607,7 @@ export function Map({ miles, presets, onMilesChange, resetRef, mode, onModeChang
     setShowingDetour(false);
     setDetourLoading(false);
     setClickPhase((prev) => (prev === "route-shown" ? "set-destination" : prev));
-  }, [miles, mode, removeRouteAndDestination, clearResult]);
+  }, [miles, removeRouteAndDestination, clearResult]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -785,6 +785,45 @@ export function Map({ miles, presets, onMilesChange, resetRef, mode, onModeChang
     [destination, fetchAndSetStops, miles, mode, origin, removeAltRoute, result],
   );
 
+  const handleModeChange = useCallback(
+    (newMode: TravelMode) => {
+      onModeChange(newMode);
+
+      if (!origin || !destination) return;
+
+      // Re-route in place with the new mode
+      isCheckingRef.current = true;
+      detourStopKeyRef.current = null;
+      setSelectedStop(null);
+      setShowingDetour(false);
+      setDetourResult(null);
+      setDetourLoading(false);
+      clearStopMarkers();
+      setNearbyStops([]);
+      removeAltRoute();
+
+      checkRoute(destination[0], destination[1], miles, origin[0], origin[1], newMode)
+        .then((data) =>
+          applyShortestRouteToMap(data, origin, destination, stopCategory, newMode),
+        )
+        .catch(() => {})
+        .finally(() => {
+          isCheckingRef.current = false;
+        });
+    },
+    [
+      onModeChange,
+      origin,
+      destination,
+      miles,
+      stopCategory,
+      clearStopMarkers,
+      removeAltRoute,
+      checkRoute,
+      applyShortestRouteToMap,
+    ],
+  );
+
   if (!config) {
     return <div className="map-loading">Loading map…</div>;
   }
@@ -805,7 +844,7 @@ export function Map({ miles, presets, onMilesChange, resetRef, mode, onModeChang
       <div ref={containerRef} className="map-container" />
       {statusText && <div className="map-status">{statusText}</div>}
       <aside className="app-sidebar">
-        <ModeToggle mode={mode} onChange={onModeChange} />
+        <ModeToggle mode={mode} onChange={handleModeChange} />
         {presets && onMilesChange && (
           <DistancePresets presets={presets} selected={miles} onChange={onMilesChange} />
         )}
