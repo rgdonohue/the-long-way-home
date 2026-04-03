@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { getRoute, type RouteResponse } from "../lib/api";
+import { getRoute, type RouteResponse, type TravelMode } from "../lib/api";
 
 export interface RouteCheckResult {
   route: RouteResponse["route"];
@@ -19,12 +19,13 @@ export function useRouteCheck() {
     miles?: number,
     originLon?: number,
     originLat?: number,
+    mode?: TravelMode,
   ) => {
     setError(null);
     setIsLoading(true);
 
     try {
-      const data = await getRoute(destLon, destLat, miles, originLon, originLat);
+      const data = await getRoute(destLon, destLat, miles, originLon, originLat, undefined, undefined, mode);
       setResult({
         route: data.route,
         distance_miles: data.distance_miles,

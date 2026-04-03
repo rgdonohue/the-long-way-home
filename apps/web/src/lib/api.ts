@@ -5,6 +5,8 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
+export type TravelMode = "drive" | "walk";
+
 export interface Config {
   origin_name: string;
   address: string;
@@ -99,11 +101,13 @@ export async function getArea(
   miles: number = 3,
   originLon?: number,
   originLat?: number,
+  mode?: TravelMode,
 ): Promise<AreaResponse> {
   const params = new URLSearchParams({ miles: String(miles) });
   if (originLon !== undefined && originLat !== undefined) {
     params.set("origin", `${originLon},${originLat}`);
   }
+  if (mode && mode !== "drive") params.set("mode", mode);
   const res = await fetch(`${API_BASE}/area?${params}`);
   if (!res.ok) throw new Error(`Area failed: ${res.status}`);
   return res.json();
@@ -116,6 +120,7 @@ export async function suggestStop(
   destLat: number,
   category: string | null,
   miles?: number,
+  mode?: TravelMode,
 ): Promise<SuggestStopResponse> {
   const params = new URLSearchParams({
     origin: `${originLon},${originLat}`,
@@ -123,6 +128,7 @@ export async function suggestStop(
   });
   if (category !== null) params.set("category", category);
   if (miles !== undefined) params.set("miles", String(miles));
+  if (mode && mode !== "drive") params.set("mode", mode);
   const res = await fetchWithTimeout(
     `${API_BASE}/suggest-stop?${params}`,
     ROUTE_TIMEOUT_MS,
@@ -148,6 +154,7 @@ export async function getRoute(
   originLat?: number,
   viaLon?: number,
   viaLat?: number,
+  mode?: TravelMode,
 ): Promise<RouteResponse> {
   const params = new URLSearchParams({ to: `${destLon},${destLat}` });
   if (miles !== undefined) params.set("miles", String(miles));
@@ -157,6 +164,7 @@ export async function getRoute(
   if (viaLon !== undefined && viaLat !== undefined) {
     params.set("via", `${viaLon},${viaLat}`);
   }
+  if (mode && mode !== "drive") params.set("mode", mode);
   const res = await fetchWithTimeout(
     `${API_BASE}/route?${params}`,
     ROUTE_TIMEOUT_MS

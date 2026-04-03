@@ -72,7 +72,7 @@ def _mock_route_response(
     }
 
 
-async def get_isodistance(lon: float, lat: float, distance_meters: float) -> dict:
+async def get_isodistance(lon: float, lat: float, distance_meters: float, profile: str = "driving-car") -> dict:
     """
     Fetch isodistance polygon from ORS isochrones.
     Returns GeoJSON FeatureCollection.
@@ -83,7 +83,7 @@ async def get_isodistance(lon: float, lat: float, distance_meters: float) -> dic
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{ORS_BASE}/v2/isochrones/driving-car",
+            f"{ORS_BASE}/v2/isochrones/{profile}",
             headers={"Authorization": settings.ORS_API_KEY},
             json={
                 "locations": [[lon, lat]],
@@ -131,6 +131,7 @@ async def get_shortest_route(
     limit_miles: float = 3.0,
     via_lon: float | None = None,
     via_lat: float | None = None,
+    profile: str = "driving-car",
 ) -> dict[str, Any]:
     """
     Fetch shortest-distance route from ORS directions.
@@ -152,7 +153,7 @@ async def get_shortest_route(
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{ORS_BASE}/v2/directions/driving-car/geojson",
+            f"{ORS_BASE}/v2/directions/{profile}/geojson",
             headers={"Authorization": settings.ORS_API_KEY},
             json={
                 "coordinates": coordinates,

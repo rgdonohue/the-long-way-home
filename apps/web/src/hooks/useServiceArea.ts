@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { getArea, type AreaResponse } from "../lib/api";
+import { getArea, type AreaResponse, type TravelMode } from "../lib/api";
 
 export function useServiceArea(
   miles: number = 3,
   originLon?: number,
   originLat?: number,
+  mode?: TravelMode,
 ) {
   const [polygon, setPolygon] = useState<AreaResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +22,7 @@ export function useServiceArea(
     setError(null);
     setIsLoading(true);
 
-    getArea(miles, originLon, originLat)
+    getArea(miles, originLon, originLat, mode)
       .then((data) => {
         if (!cancelled) {
           setPolygon(data);
@@ -41,7 +42,7 @@ export function useServiceArea(
     return () => {
       cancelled = true;
     };
-  }, [miles, originLon, originLat]);
+  }, [miles, originLon, originLat, mode]);
 
   return { polygon, isLoading, error };
 }

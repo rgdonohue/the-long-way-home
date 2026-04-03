@@ -122,6 +122,45 @@ h1, h2, h3 {
   border-color: rgba(44, 24, 16, 0.3);
 }
 
+/* Mode toggle — Drive / Walk segment control at top of sidebar */
+.mode-toggle {
+  display: flex;
+  border-bottom: 1px solid rgba(44, 24, 16, 0.08);
+}
+
+.mode-toggle__btn {
+  flex: 1;
+  padding: 0.5rem 0.875rem;
+  min-height: 36px;
+  font-size: 0.8125rem;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(44, 24, 16, 0.08);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-toggle__btn:last-child {
+  border-right: none;
+}
+
+.mode-toggle__btn:hover {
+  background: rgba(44, 24, 16, 0.04);
+}
+
+.mode-toggle__btn--active {
+  color: var(--terracotta);
+  font-weight: 600;
+  background: rgba(196, 91, 40, 0.07);
+}
+
+.mode-toggle__btn--active:hover {
+  background: rgba(196, 91, 40, 0.1);
+}
+
 /* Distance presets — inside sidebar */
 .distance-presets {
   display: flex;

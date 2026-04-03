@@ -1,4 +1,5 @@
 import type { PlaceCategory } from "../data/places";
+import type { TravelMode } from "./api";
 
 export interface ShareableRouteState {
   origin: [number, number] | null;
@@ -6,6 +7,7 @@ export interface ShareableRouteState {
   miles: number | null;
   category: PlaceCategory | null;
   detour: boolean;
+  mode: TravelMode;
 }
 
 const CATEGORY_VALUES: readonly PlaceCategory[] = [
@@ -67,6 +69,7 @@ export function parseShareableRouteState(
     miles: normalizeMiles(params.get("miles"), presets),
     category: normalizeCategory(params.get("category")),
     detour: params.get("detour") === "1",
+    mode: params.get("mode") === "walk" ? "walk" : "drive",
   };
 }
 
@@ -101,6 +104,9 @@ export function replaceShareableRouteState(
   }
   if (hasResolvedRoute && state.detour) {
     params.set("detour", "1");
+  }
+  if (state.mode === "walk") {
+    params.set("mode", "walk");
   }
 
   const nextSearch = params.toString();

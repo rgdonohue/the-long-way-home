@@ -58,11 +58,14 @@ def get_config():
     }
 
 
+def _mode_to_profile(mode: str) -> str:
+    return "foot-walking" if mode == "walk" else "driving-car"
+
+
 @app.get("/api/area")
-async def get_area(miles: float = 3, origin: str | None = None):
-    """Returns cached GeoJSON FeatureCollection for the drivable service area.
-    Accepts optional origin=lon,lat; defaults to configured origin.
-    Prefers route-based polygon (from file cache) for default origin; falls back to isochrones."""
+async def get_area(miles: float = 3, origin: str | None = None, mode: str = "drive"):
+    """Returns cached GeoJSON FeatureCollection for the service area.
+    Accepts optional origin=lon,lat and mode=drive|walk; defaults to configured origin."""
     if origin:
         try:
             origin_lon, origin_lat = _parse_to_param(origin)
@@ -74,8 +77,8 @@ async def get_area(miles: float = 3, origin: str | None = None):
         origin_lat = settings.ORIGIN_LAT
         is_default_origin = True
 
-    # Try route-based polygon only for default origin
-    if is_default_origin:
+    # Try route-based polygon only for default origin in drive mode
+    if is_default_origin and mode == "drive":
         route_based = get_route_based_polygon(miles)
         if route_based:
             now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -83,7 +86,7 @@ async def get_area(miles: float = 3, origin: str | None = None):
                 feat.setdefault("properties", {})["computed_at"] = now
             return route_based
 
-    profile = "driving-car"
+    profile = _mode_to_profile(mode)
     cache_key = f"area_{miles}_{profile}_{origin_lon}_{origin_lat}"
     cached = cache_get(cache_key)
     if cached:
@@ -91,7 +94,7 @@ async def get_area(miles: float = 3, origin: str | None = None):
 
     distance_meters = miles_to_meters(miles)
     try:
-        result = await get_isodistance(origin_lon, origin_lat, distance_meters)
+        result = await get_isodistance(origin_lon, origin_lat, distance_meters, profile)
     except ValueError as e:
         msg = str(e)
         if "rate limited" in msg.lower():
@@ -133,9 +136,10 @@ async def get_route(
     origin: str | None = None,
     via: str | None = None,
     miles: float | None = None,
+    mode: str = "drive",
 ):
     """Returns shortest route from origin to destination and within-limit verdict.
-    Accepts optional origin=lon,lat and via=lon,lat (waypoint). Defaults to configured origin."""
+    Accepts optional origin=lon,lat, via=lon,lat, and mode=drive|walk. Defaults to configured origin."""
     limit_miles = miles if miles is not None else settings.DEFAULT_RANGE_MILES
     try:
         dest_lon, dest_lat = _parse_to_param(to)
@@ -158,6 +162,7 @@ async def get_route(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid via: {e}")
 
+    profile = _mode_to_profile(mode)
     try:
         result = await get_shortest_route(
             origin_lon,
@@ -167,6 +172,7 @@ async def get_route(
             limit_miles=limit_miles,
             via_lon=via_lon,
             via_lat=via_lat,
+            profile=profile,
         )
     except ValueError as e:
         msg = str(e)
@@ -188,6 +194,7 @@ async def suggest_stop(
     destination: str,
     category: str | None = None,
     miles: float | None = None,
+    mode: str = "drive",
 ):
     """Suggest the best nearby stop along the route from origin to destination."""
     try:
@@ -202,9 +209,11 @@ async def suggest_stop(
 
     limit_miles = miles if miles is not None else settings.DEFAULT_RANGE_MILES
 
+    suggest_profile = _mode_to_profile(mode)
     try:
         route_data = await get_shortest_route(
-            origin_lon, origin_lat, dest_lon, dest_lat, limit_miles=limit_miles
+            origin_lon, origin_lat, dest_lon, dest_lat, limit_miles=limit_miles,
+            profile=suggest_profile,
         )
     except ValueError as e:
         msg = str(e)

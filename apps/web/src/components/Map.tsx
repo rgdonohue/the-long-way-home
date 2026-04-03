@@ -8,11 +8,13 @@ import {
   type Config,
   type RouteResponse,
   type StopSuggestion,
+  type TravelMode,
 } from "../lib/api";
 import { useServiceArea } from "../hooks/useServiceArea";
 import { useRouteCheck, type RouteCheckResult } from "../hooks/useRouteCheck";
 import { VerdictPanel } from "./VerdictPanel";
 import { DistancePresets } from "./DistancePresets";
+import { ModeToggle } from "./ModeToggle";
 import type { PlaceCategory } from "../data/places";
 import {
   parseShareableRouteState,
@@ -43,6 +45,8 @@ interface MapProps {
   presets?: number[];
   onMilesChange?: (miles: number) => void;
   resetRef?: { current: () => void };
+  mode: TravelMode;
+  onModeChange: (mode: TravelMode) => void;
 }
 
 function toRouteCheckResult(
@@ -59,7 +63,7 @@ function toRouteCheckResult(
   };
 }
 
-export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
+export function Map({ miles, presets, onMilesChange, resetRef, mode, onModeChange }: MapProps) {
   const initialShareStateRef = useRef(parseShareableRouteState(MILE_PRESETS));
   const restoreStartedRef = useRef(false);
 
@@ -86,7 +90,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
   const [detourLoading, setDetourLoading] = useState(false);
   const [restoreReady, setRestoreReady] = useState(false);
 
-  const { polygon } = useServiceArea(miles, origin?.[0], origin?.[1]);
+  const { polygon } = useServiceArea(miles, origin?.[0], origin?.[1], mode);
   const { checkRoute, clearResult, result, isLoading, error } = useRouteCheck();
 
   useEffect(() => {
@@ -265,6 +269,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       destinationCoord: [number, number],
       category: PlaceCategory | null,
       currentMiles: number,
+      currentMode: TravelMode,
     ): Promise<void> => {
       setStopLoading(true);
       setNearbyStops([]);
@@ -274,6 +279,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           destinationCoord[0], destinationCoord[1],
           category,
           currentMiles,
+          currentMode,
         );
         const stops = res.stops ?? [];
         setNearbyStops(stops);
@@ -310,6 +316,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       originCoord: [number, number],
       destinationCoord: [number, number],
       category: PlaceCategory | null,
+      currentMode: TravelMode,
     ): Promise<void> => {
       setDestination(destinationCoord);
       setShowingDetour(false);
@@ -329,7 +336,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       );
 
       setClickPhase("route-shown");
-      await fetchAndSetStops(originCoord, destinationCoord, category, miles);
+      await fetchAndSetStops(originCoord, destinationCoord, category, miles, currentMode);
     },
     [
       miles,
@@ -540,6 +547,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           miles,
           originCoord[0],
           originCoord[1],
+          mode,
         );
 
         if (cancelled) return;
@@ -549,6 +557,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           originCoord,
           destinationCoord,
           sharedState.category,
+          mode,
         );
       } catch {
         // If restoration fails, leave the best partial state rather than forcing a reset.
@@ -565,6 +574,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     checkRoute,
     config,
     miles,
+    mode,
     placeOriginMarker,
   ]);
 
@@ -581,8 +591,9 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       miles,
       category: stopCategory,
       detour: showingDetour,
+      mode,
     });
-  }, [restoreReady, origin, destination, miles, stopCategory, showingDetour]);
+  }, [restoreReady, origin, destination, miles, stopCategory, showingDetour, mode]);
 
   useEffect(() => {
     removeRouteAndDestination();
@@ -596,7 +607,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     setShowingDetour(false);
     setDetourLoading(false);
     setClickPhase((prev) => (prev === "route-shown" ? "set-destination" : prev));
-  }, [miles, removeRouteAndDestination, clearResult]);
+  }, [miles, mode, removeRouteAndDestination, clearResult]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -655,13 +666,14 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
         isCheckingRef.current = true;
         detourStopKeyRef.current = null;
 
-        checkRoute(lng, lat, miles, origin[0], origin[1])
+        checkRoute(lng, lat, miles, origin[0], origin[1], mode)
           .then((data) =>
             applyShortestRouteToMap(
               data,
               origin,
               [lng, lat],
               stopCategory,
+              mode,
             ),
           )
           .catch(() => {
@@ -686,6 +698,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     config,
     isLoading,
     miles,
+    mode,
     origin,
     placeOriginMarker,
     removeRouteAndDestination,
@@ -719,6 +732,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           destination[0], destination[1], miles,
           origin[0], origin[1],
           viaLon, viaLat,
+          mode,
         );
         if (detourStopKeyRef.current !== stopKey) return;
         const detour = toRouteCheckResult(data);
@@ -731,7 +745,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
         if (detourStopKeyRef.current === stopKey) setDetourLoading(false);
       }
     },
-    [applyDetourToMap, destination, fitRouteBounds, miles, origin, removeAltRoute, renderRouteLine, result],
+    [applyDetourToMap, destination, fitRouteBounds, miles, mode, origin, removeAltRoute, renderRouteLine, result],
   );
 
   // Keep ref current so map marker click handlers always call the latest version
@@ -766,9 +780,9 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
 
       if (!result || !origin || !destination) return;
 
-      void fetchAndSetStops(origin, destination, cat, miles);
+      void fetchAndSetStops(origin, destination, cat, miles, mode);
     },
-    [destination, fetchAndSetStops, miles, origin, removeAltRoute, result],
+    [destination, fetchAndSetStops, miles, mode, origin, removeAltRoute, result],
   );
 
   if (!config) {
@@ -791,6 +805,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       <div ref={containerRef} className="map-container" />
       {statusText && <div className="map-status">{statusText}</div>}
       <aside className="app-sidebar">
+        <ModeToggle mode={mode} onChange={onModeChange} />
         {presets && onMilesChange && (
           <DistancePresets presets={presets} selected={miles} onChange={onMilesChange} />
         )}
