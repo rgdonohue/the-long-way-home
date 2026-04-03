@@ -12,6 +12,7 @@ import {
 import { useServiceArea } from "../hooks/useServiceArea";
 import { useRouteCheck, type RouteCheckResult } from "../hooks/useRouteCheck";
 import { VerdictPanel } from "./VerdictPanel";
+import { DistancePresets } from "./DistancePresets";
 import type { PlaceCategory } from "../data/places";
 import {
   parseShareableRouteState,
@@ -39,6 +40,8 @@ type ClickPhase = "set-origin" | "set-destination" | "route-shown";
 
 interface MapProps {
   miles: number;
+  presets?: number[];
+  onMilesChange?: (miles: number) => void;
 }
 
 function toRouteCheckResult(
@@ -55,7 +58,7 @@ function toRouteCheckResult(
   };
 }
 
-export function Map({ miles }: MapProps) {
+export function Map({ miles, presets, onMilesChange }: MapProps) {
   const initialShareStateRef = useRef(parseShareableRouteState(MILE_PRESETS));
   const restoreStartedRef = useRef(false);
 
@@ -797,35 +800,40 @@ export function Map({ miles }: MapProps) {
     >
       <div ref={containerRef} className="map-container" />
       {statusText && <div className="map-status">{statusText}</div>}
-      {showVerdictPanel && (
-        <VerdictPanel
-          distance_miles={activeResult?.distance_miles ?? 0}
-          duration_seconds={activeResult?.duration_seconds ?? 0}
-          within_limit={activeResult?.within_limit ?? false}
-          limit_miles={miles}
-          isLoading={isLoading}
-          error={error}
-          onReset={handleReset}
-          nearbyStop={nearbyStop}
-          stopLoading={stopLoading}
-          onRouteViaStop={!showingDetour && nearbyStop ? handleRouteViaStop : null}
-          detourPreview={detourPreview}
-          stopCategory={stopCategory}
-          onCategoryChange={!showingDetour ? handleCategoryChange : null}
-          detourLoading={detourLoading}
-          showingDetour={showingDetour}
-          shortestRoute={
-            showingDetour && result
-              ? {
-                  distance_miles: result.distance_miles,
-                  duration_seconds: result.duration_seconds,
-                  within_limit: result.within_limit,
-                }
-              : null
-          }
-          onBackToShortest={showingDetour ? handleBackToShortest : null}
-        />
-      )}
+      <aside className="app-sidebar">
+        {presets && onMilesChange && (
+          <DistancePresets presets={presets} selected={miles} onChange={onMilesChange} />
+        )}
+        {showVerdictPanel && (
+          <VerdictPanel
+            distance_miles={activeResult?.distance_miles ?? 0}
+            duration_seconds={activeResult?.duration_seconds ?? 0}
+            within_limit={activeResult?.within_limit ?? false}
+            limit_miles={miles}
+            isLoading={isLoading}
+            error={error}
+            onReset={handleReset}
+            nearbyStop={nearbyStop}
+            stopLoading={stopLoading}
+            onRouteViaStop={!showingDetour && nearbyStop ? handleRouteViaStop : null}
+            detourPreview={detourPreview}
+            stopCategory={stopCategory}
+            onCategoryChange={!showingDetour ? handleCategoryChange : null}
+            detourLoading={detourLoading}
+            showingDetour={showingDetour}
+            shortestRoute={
+              showingDetour && result
+                ? {
+                    distance_miles: result.distance_miles,
+                    duration_seconds: result.duration_seconds,
+                    within_limit: result.within_limit,
+                  }
+                : null
+            }
+            onBackToShortest={showingDetour ? handleBackToShortest : null}
+          />
+        )}
+      </aside>
     </div>
   );
 }

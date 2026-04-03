@@ -130,13 +130,13 @@ export function VerdictPanel({
   const proximityText = (() => {
     if (detourPreview) {
       const extra = Math.max(0, detourPreview.extra_miles).toFixed(1);
-      return ` · +${extra} mi${detourPreview.within_limit ? "" : " (over range)"}`;
+      return `+${extra} mi via this stop${detourPreview.within_limit ? "" : " · over range"}`;
     }
-    if (detourLoading) return " · checking…";
+    if (detourLoading) return "Checking detour…";
     if (!nearbyStop) return "";
     return nearbyStop.distance_miles < 0.1
-      ? " · along your route"
-      : ` · ${nearbyStop.distance_miles.toFixed(1)} mi from route`;
+      ? "Along your route"
+      : `${nearbyStop.distance_miles.toFixed(1)} mi from route`;
   })();
 
   return (
@@ -199,10 +199,12 @@ export function VerdictPanel({
             <p className="verdict-panel__loading">Finding a stop…</p>
           ) : nearbyStop ? (
             <>
-              <p className="verdict-panel__stop-name">{nearbyStop.name}</p>
-              <p className="verdict-panel__stop-meta">
-                {getCategoryLabel(nearbyStop.category)}
-                <span
+              <p className="verdict-panel__stop-name">
+                {nearbyStop.name}
+                <span className="verdict-panel__stop-badge">{getCategoryLabel(nearbyStop.category)}</span>
+              </p>
+              {proximityText && (
+                <p
                   className="verdict-panel__stop-proximity"
                   style={
                     detourPreview
@@ -216,10 +218,7 @@ export function VerdictPanel({
                   }
                 >
                   {proximityText}
-                </span>
-              </p>
-              {nearbyStop.source_category_note === "approximate" && (
-                <p className="verdict-panel__stop-note">Approximate category match</p>
+                </p>
               )}
               {nearbyStop.description && (
                 <p className="verdict-panel__stop-desc">{nearbyStop.description}</p>
