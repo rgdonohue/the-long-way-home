@@ -219,26 +219,27 @@ async def suggest_stop(
 
     ors_attempted = settings.USE_ORS_POIS and category in ORS_ELIGIBLE_CATEGORIES
     ors_candidates = 0
-    stop = None
+    stops: list[dict] = []
+    fallback = False
 
     if ors_attempted:
         candidates = await get_pois_along_route(route_coords, category)
         ors_candidates = len(candidates)
-        stop = select_from_ors(candidates, route_coords)
-
-    fallback = False
-    if stop is None:
-        if ors_attempted:
+        stops = select_from_ors(candidates, route_coords)
+        if not stops:
             fallback = True
-        stop = select_from_static(route_coords, category)
 
-    source = stop["source"] if stop else "none"
+    if not stops:
+        stops = select_from_static(route_coords, category)
+
+    source = stops[0]["source"] if stops else "none"
     logger.info(
-        "suggest-stop category=%s ors_attempted=%s ors_candidates=%d source=%s",
+        "suggest-stop category=%s ors_attempted=%s ors_candidates=%d source=%s count=%d",
         category,
         ors_attempted,
         ors_candidates,
         source,
+        len(stops),
     )
 
-    return {"stop": stop, "fallback": fallback}
+    return {"stops": stops, "fallback": fallback}

@@ -56,10 +56,10 @@ def _min_dist_to_route(lon: float, lat: float, route_coords: list[list[float]]) 
 def select_from_ors(
     candidates: list[dict],
     route_coords: list[list[float]],
-) -> dict | None:
-    """Return the closest ORS POI feature within 1 mile of the route, or None."""
-    best: dict | None = None
-    best_dist = _MAX_DISTANCE_MILES
+    top_n: int = 5,
+) -> list[dict]:
+    """Return the top_n closest ORS POI features within 1 mile of the route."""
+    scored: list[tuple[float, dict]] = []
 
     for feature in candidates:
         try:
@@ -67,15 +67,14 @@ def select_from_ors(
         except (KeyError, TypeError, ValueError):
             continue
         dist = _min_dist_to_route(lon, lat, route_coords)
-        if dist < best_dist:
-            best_dist = dist
+        if dist <= _MAX_DISTANCE_MILES:
             props = feature.get("properties", {})
             osm_tags = props.get("osm_tags", {})
             category_ids = props.get("category_ids", {})
             category_raw = next(
                 (v.get("category_group", "") for v in category_ids.values()), ""
             )
-            best = {
+            scored.append((dist, {
                 "name": osm_tags.get("name", ""),
                 "category": category_raw,
                 "coordinates": [lon, lat],
@@ -83,31 +82,31 @@ def select_from_ors(
                 "distance_miles": dist,
                 "source": "ors",
                 "source_category_note": None,
-            }
+            }))
 
-    return best
+    scored.sort(key=lambda x: x[0])
+    return [s[1] for s in scored[:top_n]]
 
 
 def select_from_static(
     route_coords: list[list[float]],
     category: str | None,
-) -> dict | None:
-    """Return the closest static place within 1 mile of the route, or None."""
+    top_n: int = 5,
+) -> list[dict]:
+    """Return the top_n closest static places within 1 mile of the route."""
     candidates = (
         [p for p in _STATIC_PLACES if p["category"] == category]
         if category
         else _STATIC_PLACES
     )
 
-    best: dict | None = None
-    best_dist = _MAX_DISTANCE_MILES
+    scored: list[tuple[float, dict]] = []
 
     for place in candidates:
         lon, lat = place["coordinates"]
         dist = _min_dist_to_route(lon, lat, route_coords)
-        if dist < best_dist:
-            best_dist = dist
-            best = {
+        if dist <= _MAX_DISTANCE_MILES:
+            scored.append((dist, {
                 "name": place["name"],
                 "category": place["category"],
                 "coordinates": place["coordinates"],
@@ -115,6 +114,7 @@ def select_from_static(
                 "distance_miles": dist,
                 "source": "static",
                 "source_category_note": "approximate" if category in ("scenic", "culture") else None,
-            }
+            }))
 
-    return best
+    scored.sort(key=lambda x: x[0])
+    return [s[1] for s in scored[:top_n]]

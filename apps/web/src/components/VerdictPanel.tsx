@@ -45,9 +45,10 @@ interface VerdictPanelProps {
   isLoading?: boolean;
   error?: string | null;
   onReset: () => void;
-  nearbyStop?: StopSuggestion | null;
+  nearbyStops?: StopSuggestion[];
+  selectedStop?: StopSuggestion | null;
   stopLoading?: boolean;
-  onRouteViaStop?: (() => void) | null;
+  onSelectStop?: ((stop: StopSuggestion) => void) | null;
   detourLoading?: boolean;
   showingDetour?: boolean;
   shortestRoute?: {
@@ -56,7 +57,6 @@ interface VerdictPanelProps {
     within_limit: boolean;
   } | null;
   onBackToShortest?: (() => void) | null;
-  detourPreview?: { extra_miles: number; within_limit: boolean } | null;
   stopCategory?: PlaceCategory | null;
   onCategoryChange?: ((cat: PlaceCategory | null) => void) | null;
 }
@@ -75,14 +75,14 @@ export function VerdictPanel({
   isLoading = false,
   error = null,
   onReset,
-  nearbyStop = null,
+  nearbyStops = [],
+  selectedStop = null,
   stopLoading = false,
-  onRouteViaStop = null,
+  onSelectStop = null,
   detourLoading = false,
   showingDetour = false,
   shortestRoute = null,
   onBackToShortest = null,
-  detourPreview = null,
   stopCategory = null,
   onCategoryChange = null,
 }: VerdictPanelProps) {
@@ -127,18 +127,6 @@ export function VerdictPanel({
     ? `Within ${limit_miles} mi`
     : `Outside ${limit_miles} mi`;
 
-  const proximityText = (() => {
-    if (detourPreview) {
-      const extra = Math.max(0, detourPreview.extra_miles).toFixed(1);
-      return `+${extra} mi via this stop${detourPreview.within_limit ? "" : " · over range"}`;
-    }
-    if (detourLoading) return "Checking detour…";
-    if (!nearbyStop) return "";
-    return nearbyStop.distance_miles < 0.1
-      ? "Along your route"
-      : `${nearbyStop.distance_miles.toFixed(1)} mi from route`;
-  })();
-
   return (
     <div
       className="verdict-panel verdict-panel--visible"
@@ -146,9 +134,9 @@ export function VerdictPanel({
       aria-label="Route check result"
       aria-live="polite"
     >
-      {showingDetour && nearbyStop ? (
+      {showingDetour && selectedStop ? (
         <div className="verdict-panel__detour-header">
-          <h3 className="verdict-panel__title">Via {nearbyStop.name}</h3>
+          <h3 className="verdict-panel__title">Via {selectedStop.name}</h3>
           {!isLoading && <span className={statusClass}>{statusText}</span>}
         </div>
       ) : (
@@ -188,50 +176,39 @@ export function VerdictPanel({
         </div>
       )}
 
-      {/* Nearby stop suggestion (shortest mode only) */}
+      {/* Stop suggestions list (shortest mode only) */}
       {!showingDetour && !isLoading && (
         <div className="verdict-panel__stop">
           <p className="verdict-panel__stop-label">Along the way</p>
           {onCategoryChange && (
             <StopCategorySelector selected={stopCategory ?? null} onChange={onCategoryChange} />
           )}
-          {stopLoading && !nearbyStop ? (
-            <p className="verdict-panel__loading">Finding a stop…</p>
-          ) : nearbyStop ? (
+          {stopLoading ? (
+            <p className="verdict-panel__loading">Finding stops…</p>
+          ) : nearbyStops.length > 0 ? (
             <>
-              <p className="verdict-panel__stop-name">
-                {nearbyStop.name}
-                <span className="verdict-panel__stop-badge">{getCategoryLabel(nearbyStop.category)}</span>
-              </p>
-              {proximityText && (
-                <p
-                  className="verdict-panel__stop-proximity"
-                  style={
-                    detourPreview
-                      ? {
-                          color: detourPreview.within_limit
-                            ? "var(--route-within)"
-                            : "var(--route-outside)",
-                          fontWeight: 500,
-                        }
-                      : undefined
-                  }
-                >
-                  {proximityText}
-                </p>
-              )}
-              {nearbyStop.description && (
-                <p className="verdict-panel__stop-desc">{nearbyStop.description}</p>
-              )}
-              {onRouteViaStop && (
-                <button
-                  type="button"
-                  className="verdict-panel__via-btn"
-                  onClick={onRouteViaStop}
-                  disabled={detourLoading}
-                >
-                  {detourLoading ? "Computing…" : "Route via this stop"}
-                </button>
+              <ul className="stop-list">
+                {nearbyStops.map((stop) => (
+                  <li key={stop.name}>
+                    <button
+                      type="button"
+                      className="stop-list__item"
+                      onClick={() => onSelectStop?.(stop)}
+                      disabled={detourLoading}
+                    >
+                      <span className="stop-list__item-header">
+                        <span className="stop-list__item-name">{stop.name}</span>
+                        <span className="stop-list__item-badge">{getCategoryLabel(stop.category)}</span>
+                      </span>
+                      {stop.description && (
+                        <span className="stop-list__item-desc">{stop.description}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {detourLoading && (
+                <p className="verdict-panel__loading">Computing route…</p>
               )}
             </>
           ) : (

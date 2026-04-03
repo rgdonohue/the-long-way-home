@@ -58,7 +58,7 @@ export interface StopSuggestion {
 }
 
 export interface SuggestStopResponse {
-  stop: StopSuggestion | null;
+  stops: StopSuggestion[];
   fallback: boolean;
 }
 

@@ -23,8 +23,8 @@ const CLICK_DEBOUNCE_MS = 300;
 const TONER_LITE_URL =
   "https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png";
 
-const ROUTE_WITHIN_COLOR = "#2D7D46";
-const ROUTE_OUTSIDE_COLOR = "#B8432F";
+const ROUTE_COLOR = "#C45B28";       // terracotta — used for all routes
+const ROUTE_OUTSIDE_COLOR = "#B8432F"; // outside-limit override
 const MILE_PRESETS = [1, 3, 5] as const;
 
 /** Fallback when API is unavailable — Capitol coordinates */
@@ -67,15 +67,18 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const originMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const stopMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const stopMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const stopPopupRef = useRef<maplibregl.Popup | null>(null);
   const isCheckingRef = useRef(false);
   const detourStopKeyRef = useRef<string | null>(null);
+  const onStopClickRef = useRef<(stop: StopSuggestion) => void>(() => {});
 
   const [config, setConfig] = useState<Config | null>(null);
   const [clickPhase, setClickPhase] = useState<ClickPhase>("set-origin");
   const [origin, setOrigin] = useState<[number, number] | null>(null);
   const [destination, setDestination] = useState<[number, number] | null>(null);
-  const [nearbyStop, setNearbyStop] = useState<StopSuggestion | null>(null);
+  const [nearbyStops, setNearbyStops] = useState<StopSuggestion[]>([]);
+  const [selectedStop, setSelectedStop] = useState<StopSuggestion | null>(null);
   const [stopLoading, setStopLoading] = useState(false);
   const [stopCategory, setStopCategory] = useState<PlaceCategory | null>(null);
   const [detourResult, setDetourResult] = useState<RouteCheckResult | null>(null);
@@ -207,31 +210,64 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     [],
   );
 
-  const updateNearbyStopMarker = useCallback((stop: StopSuggestion | null) => {
-    if (stopMarkerRef.current) {
-      stopMarkerRef.current.remove();
-      stopMarkerRef.current = null;
+  const clearStopMarkers = useCallback(() => {
+    if (stopPopupRef.current) {
+      stopPopupRef.current.remove();
+      stopPopupRef.current = null;
     }
-
-    const map = mapRef.current;
-    if (!map || !stop) return;
-
-    const stopEl = document.createElement("div");
-    stopEl.className = "stop-marker";
-    stopMarkerRef.current = new maplibregl.Marker({ element: stopEl })
-      .setLngLat(stop.coordinates)
-      .addTo(map);
+    stopMarkersRef.current.forEach((m) => m.remove());
+    stopMarkersRef.current = [];
   }, []);
 
-  const fetchAndSetStop = useCallback(
+  const updateStopMarkers = useCallback(
+    (stops: StopSuggestion[]) => {
+      clearStopMarkers();
+      const map = mapRef.current;
+      if (!map || stops.length === 0) return;
+
+      const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 14,
+        anchor: "top",
+        className: "stop-tooltip-popup",
+      });
+      stopPopupRef.current = popup;
+
+      stops.forEach((stop) => {
+        const el = document.createElement("div");
+        el.className = "stop-marker";
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat(stop.coordinates)
+          .addTo(map);
+
+        el.addEventListener("mouseenter", () => {
+          popup.setHTML(stop.name).setLngLat(stop.coordinates).addTo(map);
+        });
+        el.addEventListener("mouseleave", () => {
+          popup.remove();
+        });
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onStopClickRef.current(stop);
+        });
+
+        stopMarkersRef.current.push(marker);
+      });
+    },
+    [clearStopMarkers],
+  );
+
+  const fetchAndSetStops = useCallback(
     async (
       originCoord: [number, number],
       destinationCoord: [number, number],
       category: PlaceCategory | null,
       currentMiles: number,
-    ): Promise<StopSuggestion | null> => {
+    ): Promise<void> => {
       setStopLoading(true);
-      setNearbyStop(null);
+      setNearbyStops([]);
       try {
         const res = await suggestStop(
           originCoord[0], originCoord[1],
@@ -239,66 +275,34 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           category,
           currentMiles,
         );
-        const stop = res.stop ?? null;
-        setNearbyStop(stop);
-        updateNearbyStopMarker(stop);
-        return stop;
+        const stops = res.stops ?? [];
+        setNearbyStops(stops);
+        updateStopMarkers(stops);
       } catch {
         console.error("suggest-stop failed");
-        updateNearbyStopMarker(null);
-        return null;
+        updateStopMarkers([]);
       } finally {
         setStopLoading(false);
       }
     },
-    [updateNearbyStopMarker],
+    [updateStopMarkers],
   );
 
-  const precomputeDetour = useCallback(
-    async (
-      stop: StopSuggestion | null,
-      originCoord: [number, number],
-      destinationCoord: [number, number],
-      currentMiles: number,
-    ): Promise<RouteCheckResult | null> => {
-      detourStopKeyRef.current = stop ? stop.name : null;
-      setDetourResult(null);
-
-      if (!stop) {
-        setDetourLoading(false);
-        return null;
-      }
-
-      const stopKey = stop.name;
-      const [viaLon, viaLat] = stop.coordinates;
-      setDetourLoading(true);
-
-      try {
-        const detourData = await getRoute(
-          destinationCoord[0],
-          destinationCoord[1],
-          currentMiles,
-          originCoord[0],
-          originCoord[1],
-          viaLon,
-          viaLat,
-        );
-
-        if (detourStopKeyRef.current !== stopKey) return null;
-
-        const nextDetour = toRouteCheckResult(detourData);
-        setDetourResult(nextDetour);
-        return nextDetour;
-      } catch {
-        return null;
-      } finally {
-        if (detourStopKeyRef.current === stopKey) {
-          setDetourLoading(false);
-        }
-      }
-    },
-    [],
-  );
+  const fitRouteBounds = useCallback((routeCoords: number[][]) => {
+    const map = mapRef.current;
+    if (!map || routeCoords.length === 0) return;
+    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+    for (const [lon, lat] of routeCoords) {
+      if (lon < minLon) minLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lon > maxLon) maxLon = lon;
+      if (lat > maxLat) maxLat = lat;
+    }
+    map.fitBounds(
+      [[minLon, minLat], [maxLon, maxLat]],
+      { padding: { top: 80, bottom: 80, left: 80, right: 380 }, duration: 800, maxZoom: 16 },
+    );
+  }, []);
 
   const applyShortestRouteToMap = useCallback(
     async (
@@ -306,16 +310,18 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       originCoord: [number, number],
       destinationCoord: [number, number],
       category: PlaceCategory | null,
-      options?: { precomputeDetour?: boolean },
-    ): Promise<{ stop: StopSuggestion | null; detour: RouteCheckResult | null }> => {
+    ): Promise<void> => {
       setDestination(destinationCoord);
       setShowingDetour(false);
+      setSelectedStop(null);
+      setDetourResult(null);
+      setDetourLoading(false);
       removeAltRoute();
 
       placeDestinationMarker(destinationCoord, routeData.within_limit);
       renderRouteLine(
         routeData.route,
-        routeData.within_limit ? ROUTE_WITHIN_COLOR : ROUTE_OUTSIDE_COLOR,
+        routeData.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
         "route",
         "route-line",
         0.9,
@@ -323,22 +329,12 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       );
 
       setClickPhase("route-shown");
-      const stop = await fetchAndSetStop(originCoord, destinationCoord, category, miles);
-
-      if (options?.precomputeDetour === false) {
-        setDetourResult(null);
-        setDetourLoading(false);
-        return { stop, detour: null };
-      }
-
-      const detour = await precomputeDetour(stop, originCoord, destinationCoord, miles);
-      return { stop, detour };
+      await fetchAndSetStops(originCoord, destinationCoord, category, miles);
     },
     [
       miles,
-      fetchAndSetStop,
+      fetchAndSetStops,
       placeDestinationMarker,
-      precomputeDetour,
       removeAltRoute,
       renderRouteLine,
     ],
@@ -348,7 +344,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     (detour: RouteCheckResult, shortest: RouteCheckResult) => {
       renderRouteLine(
         shortest.route,
-        shortest.within_limit ? ROUTE_WITHIN_COLOR : ROUTE_OUTSIDE_COLOR,
+        shortest.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
         "route-alt",
         "route-alt-line",
         0.3,
@@ -357,7 +353,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       );
       renderRouteLine(
         detour.route,
-        detour.within_limit ? ROUTE_WITHIN_COLOR : ROUTE_OUTSIDE_COLOR,
+        detour.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
         "route",
         "route-line",
         0.9,
@@ -373,17 +369,14 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       destMarkerRef.current.remove();
       destMarkerRef.current = null;
     }
-    if (stopMarkerRef.current) {
-      stopMarkerRef.current.remove();
-      stopMarkerRef.current = null;
-    }
+    clearStopMarkers();
     const map = mapRef.current;
     if (map) {
       if (map.getLayer("route-line")) map.removeLayer("route-line");
       if (map.getSource("route")) map.removeSource("route");
     }
     removeAltRoute();
-  }, [removeAltRoute]);
+  }, [clearStopMarkers, removeAltRoute]);
 
   const handleReset = useCallback(() => {
     detourStopKeyRef.current = null;
@@ -394,7 +387,8 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     removeRouteAndDestination();
     setOrigin(null);
     setDestination(null);
-    setNearbyStop(null);
+    setNearbyStops([]);
+    setSelectedStop(null);
     setStopLoading(false);
     setStopCategory(null);
     setDetourResult(null);
@@ -451,14 +445,11 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
         destMarkerRef.current.remove();
         destMarkerRef.current = null;
       }
-      if (stopMarkerRef.current) {
-        stopMarkerRef.current.remove();
-        stopMarkerRef.current = null;
-      }
+      clearStopMarkers();
       map.remove();
       mapRef.current = null;
     };
-  }, [config]);
+  }, [config, clearStopMarkers]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -553,16 +544,12 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
 
         if (cancelled) return;
 
-        const { detour } = await applyShortestRouteToMap(
+        await applyShortestRouteToMap(
           shortest,
           originCoord,
           destinationCoord,
           sharedState.category,
         );
-
-        if (cancelled || !sharedState.detour || !detour) return;
-
-        applyDetourToMap(detour, toRouteCheckResult(shortest));
       } catch {
         // If restoration fails, leave the best partial state rather than forcing a reset.
       } finally {
@@ -574,7 +561,6 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       cancelled = true;
     };
   }, [
-    applyDetourToMap,
     applyShortestRouteToMap,
     checkRoute,
     config,
@@ -602,7 +588,8 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     removeRouteAndDestination();
     clearResult();
     detourStopKeyRef.current = null;
-    setNearbyStop(null);
+    setNearbyStops([]);
+    setSelectedStop(null);
     setStopLoading(false);
     setDestination(null);
     setDetourResult(null);
@@ -649,7 +636,8 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
           detourStopKeyRef.current = null;
           removeRouteAndDestination();
           clearResult();
-          setNearbyStop(null);
+          setNearbyStops([]);
+          setSelectedStop(null);
           setStopLoading(false);
           setDestination(null);
           setDetourResult(null);
@@ -704,51 +692,60 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     stopCategory,
   ]);
 
-  const handleRouteViaStop = useCallback(async () => {
-    if (!origin || !destination || !result || !nearbyStop || detourLoading) return;
+  const handleSelectStop = useCallback(
+    async (stop: StopSuggestion) => {
+      if (!origin || !destination || !result) return;
 
-    if (detourResult) {
-      applyDetourToMap(detourResult, result);
-      return;
-    }
-
-    setDetourLoading(true);
-    try {
-      const [viaLon, viaLat] = nearbyStop.coordinates;
-      const data = await getRoute(
-        destination[0],
-        destination[1],
-        miles,
-        origin[0],
-        origin[1],
-        viaLon,
-        viaLat,
+      const stopKey = stop.name;
+      detourStopKeyRef.current = stopKey;
+      setSelectedStop(stop);
+      setShowingDetour(false);
+      setDetourLoading(true);
+      setDetourResult(null);
+      removeAltRoute();
+      // Restore shortest route line while computing detour
+      renderRouteLine(
+        result.route,
+        result.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
+        "route",
+        "route-line",
+        0.9,
+        4,
       );
-      const detour = toRouteCheckResult(data);
-      setDetourResult(detour);
-      applyDetourToMap(detour, result);
-    } catch {
-      // Detour failed; stay on shortest route.
-    } finally {
-      setDetourLoading(false);
-    }
-  }, [
-    applyDetourToMap,
-    destination,
-    detourLoading,
-    detourResult,
-    miles,
-    nearbyStop,
-    origin,
-    result,
-  ]);
+
+      try {
+        const [viaLon, viaLat] = stop.coordinates;
+        const data = await getRoute(
+          destination[0], destination[1], miles,
+          origin[0], origin[1],
+          viaLon, viaLat,
+        );
+        if (detourStopKeyRef.current !== stopKey) return;
+        const detour = toRouteCheckResult(data);
+        setDetourResult(detour);
+        applyDetourToMap(detour, result);
+        fitRouteBounds(detour.route.geometry.coordinates);
+      } catch {
+        if (detourStopKeyRef.current === stopKey) setSelectedStop(null);
+      } finally {
+        if (detourStopKeyRef.current === stopKey) setDetourLoading(false);
+      }
+    },
+    [applyDetourToMap, destination, fitRouteBounds, miles, origin, removeAltRoute, renderRouteLine, result],
+  );
+
+  // Keep ref current so map marker click handlers always call the latest version
+  useEffect(() => {
+    onStopClickRef.current = handleSelectStop;
+  }, [handleSelectStop]);
 
   const handleBackToShortest = useCallback(() => {
     if (!result) return;
     setShowingDetour(false);
+    setSelectedStop(null);
     renderRouteLine(
       result.route,
-      result.within_limit ? ROUTE_WITHIN_COLOR : ROUTE_OUTSIDE_COLOR,
+      result.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
       "route",
       "route-line",
       0.9,
@@ -761,22 +758,17 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
     (cat: PlaceCategory | null) => {
       setStopCategory(cat);
       setShowingDetour(false);
+      setSelectedStop(null);
       removeAltRoute();
       detourStopKeyRef.current = null;
       setDetourResult(null);
+      setDetourLoading(false);
 
       if (!result || !origin || !destination) return;
 
-      void (async () => {
-        const stop = await fetchAndSetStop(origin, destination, cat, miles);
-        if (!stop) {
-          setDetourLoading(false);
-          return;
-        }
-        void precomputeDetour(stop, origin, destination, miles);
-      })();
+      void fetchAndSetStops(origin, destination, cat, miles);
     },
-    [destination, fetchAndSetStop, miles, origin, precomputeDetour, removeAltRoute, result],
+    [destination, fetchAndSetStops, miles, origin, removeAltRoute, result],
   );
 
   if (!config) {
@@ -785,13 +777,6 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
 
   const activeResult = showingDetour && detourResult ? detourResult : result;
   const showVerdictPanel = isLoading || result !== null || error !== null;
-  const detourPreview =
-    !showingDetour && nearbyStop && detourResult && result
-      ? {
-          extra_miles: detourResult.distance_miles - result.distance_miles,
-          within_limit: detourResult.within_limit,
-        }
-      : null;
   const statusText =
     !showVerdictPanel && clickPhase === "set-origin"
       ? "Click map to set origin"
@@ -818,10 +803,10 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
             isLoading={isLoading}
             error={error}
             onReset={handleReset}
-            nearbyStop={nearbyStop}
+            nearbyStops={nearbyStops}
+            selectedStop={selectedStop}
             stopLoading={stopLoading}
-            onRouteViaStop={!showingDetour && nearbyStop ? handleRouteViaStop : null}
-            detourPreview={detourPreview}
+            onSelectStop={!showingDetour ? handleSelectStop : null}
             stopCategory={stopCategory}
             onCategoryChange={!showingDetour ? handleCategoryChange : null}
             detourLoading={detourLoading}
