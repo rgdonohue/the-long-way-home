@@ -198,7 +198,7 @@ export function Map({ miles, presets, onMilesChange, resetRef }: MapProps) {
       el.style.height = "16px";
       el.style.borderRadius = "50%";
       el.style.backgroundColor = withinLimit
-        ? ROUTE_WITHIN_COLOR
+        ? ROUTE_COLOR
         : ROUTE_OUTSIDE_COLOR;
       el.style.border = "2px solid white";
       el.style.boxShadow = "0 1px 3px rgba(0,0,0,0.3)";
