@@ -131,7 +131,13 @@ export async function suggestStop(
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail ?? `Suggest-stop failed: ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  // Backwards-compat: old backend returned { stop: ... }, new returns { stops: [...] }
+  if (!data.stops && data.stop !== undefined) {
+    data.stops = data.stop ? [data.stop] : [];
+  }
+  data.stops ??= [];
+  return data as SuggestStopResponse;
 }
 
 export async function getRoute(
