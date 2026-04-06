@@ -1,4 +1,4 @@
-# Next Steps Plan: From 3-Mile Drive Map to "Long Way Home"
+# Next Steps Plan: The Long Way Home
 
 ## Why this doc still exists
 

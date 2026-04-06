@@ -1,5 +1,5 @@
 /**
- * Typed API client for 3-Mile Drive Map backend.
+ * Typed API client for The Long Way Home backend.
  * Base URL from env or defaults to /api (proxied by Vite).
  */
 

@@ -1,4 +1,4 @@
-# CLAUDE.md - 3-Mile Drive Map
+# CLAUDE.md - The Long Way Home
 
 ## What this project is
 

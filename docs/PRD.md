@@ -1,8 +1,8 @@
-# PRD - 3-Mile Drive Map
+# PRD - The Long Way Home
 
 ## Summary
 
-3-Mile Drive Map is a Santa Fe routing tool for checking whether a destination is within a selected driving-distance threshold from a user-chosen origin.
+The Long Way Home is a Santa Fe routing tool for checking whether a destination is within a selected driving-distance threshold from a user-chosen origin.
 
 The current product flow is map-first:
 

@@ -1,6 +1,6 @@
 # Web App
 
-Frontend package for 3-Mile Drive Map.
+Frontend package for The Long Way Home.
 
 ## Scripts
 

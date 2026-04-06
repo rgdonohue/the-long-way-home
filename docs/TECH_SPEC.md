@@ -1,4 +1,4 @@
-# Technical Specification - 3-Mile Drive Map
+# Technical Specification - The Long Way Home
 
 ## 1. System Overview
 
