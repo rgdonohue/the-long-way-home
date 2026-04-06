@@ -2,9 +2,9 @@
 
 **A place-aware routing experiment built first in Santa Fe.**
 
-Long Way Home is a web mapping prototype that compares the **shortest driving route** with a route that might be **more worth taking**.
+Long Way Home is a web mapping prototype that finds the **shortest route** between two points — by foot or by car — and then asks: *is there somewhere worth stopping along the way?*
 
-Set an origin and destination by clicking the map. The app draws the baseline route, reports distance and estimated drive time, checks whether the trip stays within a selected mileage budget, and suggests one nearby stop along the way from a small curated place dataset. If the stop looks worth it, you can reroute through it and see the tradeoff immediately: **how many extra miles and minutes the detour adds, and whether it still fits your budget**.
+Set an origin and a destination by clicking the map. The app draws the baseline route, reports distance and time, and surfaces up to five nearby stops from a curated local place dataset. Pick one and the map reroutes through it, showing exactly how many extra miles and minutes the detour adds.
 
 This project started as a simple network-distance map. It has since evolved into a small spatial UX experiment: **what happens when routing is shaped not only by efficiency, but also by place?**
 
@@ -17,7 +17,7 @@ Most routing interfaces optimize for speed, distance, or convenience. That makes
 Long Way Home explores a different interaction pattern:
 
 - show the shortest route
-- surface one nearby stop with local value
+- surface nearby stops with local value
 - make the tradeoff explicit
 - let the user decide whether the detour is worth it
 
@@ -27,32 +27,22 @@ The current build uses Santa Fe as its first case study because it is compact, v
 
 ## What the app does
 
-### Current interaction flow
+### Interaction flow
 
-1. **Click once to set an origin**
+1. **Click once to set an origin** — three concentric distance rings appear, drawn from the actual street or trail network for the current mode
 2. **Click again to set a destination**
-3. The app draws the **shortest driving route**
-4. The panel shows:
-   - route distance
-   - estimated drive time
-   - whether the trip is within the selected mileage threshold
-5. The app looks for **one nearby place** along the route from the current category filter
-6. If a suitable stop exists, the app:
-   - shows it in the panel
-   - previews whether routing through it stays within the selected budget
-   - lets you click **Route via this stop**
-7. The map then compares:
-   - the original shortest route
-   - the via-stop route
-   - the added distance and time
+3. The app draws the **shortest route** (driving or walking)
+4. The panel shows route distance and estimated travel time
+5. The app surfaces **up to five nearby stops** along the route from the current category filter — all plotted on the map
+6. Click any stop in the list or on the map to reroute through it; the panel shows the added distance and time
+7. Switch back to the shortest route at any time
 8. The full state can be shared through the URL
 
-### Current controls
+### Controls
 
-- **Mileage presets:** 1, 3, or 5 miles
+- **Drive / Walk toggle** — switches the routing profile and redraws the distance rings for the relevant scale (drive: 1 / 3 / 5 mi · walk: 0.5 / 1 / 2 mi)
 - **Stop categories:** Any, History, Art, Scenic, Food, Culture
-- **Route toggle:** shortest route or route via suggested stop
-- **Reset:** clear the route and start over
+- **Reset:** clear the route and start over from the header
 
 ---
 
@@ -62,13 +52,15 @@ This is **not** a full trip planner or a live POI search engine.
 
 It is a deliberately small, opinionated prototype that combines:
 
-- **network-aware routing**
-- **budget-aware detour logic**
+- **network-aware routing** — via OpenRouteService for both driving and walking
+- **real isochrone rings** — three concentric reachability rings, not geometric circles, drawn from the actual road and trail network
+- **multi-stop discovery** — up to five route-adjacent stops plotted simultaneously
+- **budget-aware detour logic** — detour cost shown as delta miles and minutes
 - **curated local place selection**
 - **shareable route state**
 - **a map-first interaction model**
 
-The goal is not to overwhelm the user with options. The goal is to test whether **one good suggestion with a clear cost** can be more compelling than a cluttered list of “things near your route.”
+The goal is not to overwhelm the user with options. The goal is to test whether **a small set of good suggestions with a clear cost** can be more compelling than a generic list.
 
 ---
 
@@ -89,16 +81,19 @@ The goal is not to overwhelm the user with options. The goal is to test whether 
 
 ### Data / logic
 
-- curated local place dataset for route-adjacent stop suggestions
-- frontend route-proximity selection logic
-- ORS-backed shortest-path and via-stop routing
+- Curated local place dataset for route-adjacent stop suggestions
+- ORS-backed shortest-path routing (`preference="shortest"`) for both `driving-car` and `foot-walking` profiles
+- ORS isochrone API for multi-ring service areas (single request, multiple ranges)
 - URL-synced app state for shareable map views
 
 ### Deployment
 
-- monorepo deployed as two Railway services:
-  - `apps/web`
-  - `apps/api`
+Monorepo deployed as two services:
+
+```text
+apps/web   → frontend
+apps/api   → backend
+```
 
 ---
 
@@ -106,77 +101,28 @@ The goal is not to overwhelm the user with options. The goal is to test whether 
 
 ```text
 apps/
-  web/   -> React + MapLibre frontend
-  api/   -> FastAPI backend, ORS integration
+  web/   → React + MapLibre frontend
+  api/   → FastAPI backend, ORS integration
 ```
 
 ### Frontend responsibilities
 
-- map rendering
-- click-to-set interaction flow
+- map rendering and click-to-set interaction flow
+- concentric isochrone ring display (three rings per origin, no fill)
 - route and detour display
+- multi-stop marker management and hover tooltips
 - stop-category filtering
-- route comparison UI
+- Drive / Walk mode toggle with in-place re-routing
 - URL state sync / restore
 
 ### Backend responsibilities
 
-- route requests to OpenRouteService
+- route requests to OpenRouteService (driving and walking)
 - shortest-route and via-stop route calculation
-- service-area polygon generation
+- multi-range isochrone generation (one ORS call returns all three rings)
+- stop suggestion from ORS POI API + curated static fallback
 - environment config management
 - dev fallback behavior when no API key is present
-
----
-
-## Process and design approach
-
-Long Way Home was built iteratively as a **small product-thinking exercise**, not just a code demo.
-
-The development process emphasized:
-
-- starting from a narrow working prototype
-- improving coherence before adding features
-- keeping the interaction legible
-- using a small curated dataset before reaching for larger live integrations
-- favoring explicit tradeoffs over hidden “smart” behavior
-- documenting each phase so the repo remains understandable
-
-In practice, that meant evolving the project through clear stages:
-
-1. fixed-origin distance checker
-2. dynamic origin/destination routing
-3. route-adjacent place suggestion
-4. reroute-through-stop comparison
-5. budget-aware detour messaging
-6. category filtering
-7. shareable URL state
-
-That incremental path matters. The project is as much about **spatial product design and interaction framing** as it is about routing.
-
----
-
-## Current scope and limitations
-
-This is still a prototype.
-
-### Current limitations
-
-- The place suggestions come from a **small curated static dataset**, not a live search or POI API
-- The map currently supports **driving routes only**
-- There is **no text search / geocoder** yet
-- The shaded service-area polygon is **advisory**; the route verdict is authoritative
-- Without a valid OpenRouteService API key, the backend falls back to **mock responses for development**
-- The current implementation is seeded for **Santa Fe first**, though the concept is designed to scale beyond it
-
-### Not built yet
-
-- walk / bike / transit modes
-- live POI sources
-- multiple stop suggestions
-- browser history `popstate` restoration
-- stronger persistence beyond shareable URLs
-- more sophisticated stop ranking logic
 
 ---
 
@@ -232,17 +178,15 @@ Current shared state includes:
 
 - origin
 - destination
-- mileage preset
 - stop category
 - whether the via-stop route is active
+- travel mode (omitted when drive, the default)
 
-Example shape:
+Example:
 
 ```text
-?origin=-105.9394,35.687&destination=-105.944,35.683&miles=3&category=art&detour=1
+?origin=-105.9394,35.687&destination=-105.944,35.683&category=art&detour=1&mode=walk
 ```
-
-This makes it easier to demo specific route scenarios and discuss the interaction with others.
 
 ---
 
@@ -254,32 +198,27 @@ See [docs/DEPLOY.md](docs/DEPLOY.md) for deployment details.
 
 ---
 
-## Project direction
+## Current limitations
 
-Long Way Home is currently a **Santa Fe-first prototype** for a broader idea:
-
-> routing that balances efficiency with cultural, scenic, or local meaning.
-
-Possible future directions include:
-
-- expanding beyond Santa Fe
-- replacing the static dataset with richer live place data
-- supporting more travel modes
-- improving the stop-ranking logic
-- testing this interaction pattern with real users in mapping / cartography / civic-tech contexts
+- Place suggestions come from a **small curated static dataset**, not a live search or POI API
+- No **text search / geocoder**
+- Without a valid OpenRouteService API key, the backend falls back to **mock responses** for development
+- Seeded for **Santa Fe first**, though the concept is designed to scale
 
 ---
 
-## Who this is for
+## Project direction
 
-This project is especially relevant to people interested in:
+Long Way Home is a **Santa Fe-first prototype** for a broader idea:
 
-- GIS and web cartography
-- spatial UX / product design
-- route interfaces
-- place-aware computing
-- cultural mapping
-- map prototypes that sit between analysis and storytelling
+> routing that balances efficiency with cultural, scenic, or local meaning.
+
+Possible future directions:
+
+- expanding beyond Santa Fe
+- replacing the static dataset with richer live place data
+- improving stop-ranking logic
+- testing this interaction pattern with real users in mapping / cartography / civic-tech contexts
 
 ---
 
