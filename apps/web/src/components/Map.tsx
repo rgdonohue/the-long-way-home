@@ -50,6 +50,7 @@ type ClickPhase = "set-origin" | "set-destination" | "route-shown";
 
 interface MapProps {
   resetRef?: { current: () => void };
+  modeChangeRef?: { current: (mode: TravelMode) => void };
   mode: TravelMode;
   onModeChange: (mode: TravelMode) => void;
 }
@@ -89,7 +90,7 @@ function toRouteCheckResult(
   };
 }
 
-export function Map({ resetRef, mode, onModeChange }: MapProps) {
+export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
   const initialShareStateRef = useRef(parseShareableRouteState());
   const restoreStartedRef = useRef(false);
 
@@ -635,6 +636,7 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
     if (resetRef) resetRef.current = handleReset;
   }, [resetRef, handleReset]);
 
+
   useEffect(() => {
     if (!restoreReady) return;
 
@@ -850,10 +852,11 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
 
       if (!origin || !destination) return;
 
-      // Re-route in place with the new mode
+      const stopsToRestore = selectedStops;
+
+      // Re-route in place with the new mode, preserving selected stops
       isCheckingRef.current = true;
       detourRequestRef.current += 1;
-      setSelectedStops([]);
       setShowingDetour(false);
       setDetourResult(null);
       setDetourLoading(false);
@@ -862,9 +865,48 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
       removeAltRoute();
 
       checkRoute(destination[0], destination[1], effectiveMilesFor(newMode), origin[0], origin[1], newMode)
-        .then((data) =>
-          applyShortestRouteToMap(data, origin, destination, stopCategory, newMode),
-        )
+        .then(async (data) => {
+          // Apply direct route to map
+          placeDestinationMarker(destination, data.within_limit);
+          renderRouteLine(
+            data.route, data.within_limit ? ROUTE_COLOR : ROUTE_OUTSIDE_COLOR,
+            "route", "route-line", 0.9, 4,
+          );
+          fitRouteBounds(data.route.geometry.coordinates);
+          setClickPhase("route-shown");
+          await fetchAndSetStops(origin, destination, stopCategory, effectiveMilesFor(newMode), newMode, stopsToRestore);
+
+          if (stopsToRestore.length === 0) {
+            setSelectedStops([]);
+            return;
+          }
+
+          // Re-sort stops by new route geometry and recompute multi-stop route
+          const sorted = sortByRoutePosition(stopsToRestore, data.route.geometry.coordinates);
+          setSelectedStops(sorted);
+          detourRequestRef.current += 1;
+          const reqId = detourRequestRef.current;
+          setDetourLoading(true);
+
+          try {
+            const viaData = await getRoute(
+              destination[0], destination[1], effectiveMilesFor(newMode),
+              origin[0], origin[1],
+              sorted.map((s) => s.coordinates),
+              newMode,
+            );
+            if (detourRequestRef.current !== reqId) return;
+            const directResult = toRouteCheckResult(data);
+            const detour = toRouteCheckResult(viaData);
+            setDetourResult(detour);
+            applyDetourToMap(detour, directResult);
+            fitRouteBounds(detour.route.geometry.coordinates);
+          } catch {
+            if (detourRequestRef.current === reqId) setSelectedStops([]);
+          } finally {
+            if (detourRequestRef.current === reqId) setDetourLoading(false);
+          }
+        })
         .catch(() => {})
         .finally(() => {
           isCheckingRef.current = false;
@@ -874,13 +916,22 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
       onModeChange,
       origin,
       destination,
+      selectedStops,
       stopCategory,
       clearStopMarkers,
       removeAltRoute,
       checkRoute,
-      applyShortestRouteToMap,
+      placeDestinationMarker,
+      renderRouteLine,
+      fitRouteBounds,
+      fetchAndSetStops,
+      applyDetourToMap,
     ],
   );
+
+  useEffect(() => {
+    if (modeChangeRef) modeChangeRef.current = handleModeChange;
+  }, [modeChangeRef, handleModeChange]);
 
   if (!config) {
     return <div className="map-loading">Loading map…</div>;

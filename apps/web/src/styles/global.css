@@ -123,6 +123,12 @@ h1, h2, h3 {
   border-color: rgba(44, 24, 16, 0.3);
 }
 
+/* App-level mode toggle — visible only on mobile, sits below header */
+.app-mode-toggle-mobile {
+  display: none;
+  flex-shrink: 0;
+}
+
 /* Mode toggle — Drive / Walk segment control at top of sidebar */
 .mode-toggle {
   display: flex;
@@ -1000,6 +1006,12 @@ h1, h2, h3 {
     left: 50%;
     transform: translateX(-50%);
     font-size: 0.75rem;
+  }
+  .app-mode-toggle-mobile {
+    display: block;
+  }
+  .app-sidebar > .mode-toggle {
+    display: none;
   }
   .verdict-panel {
     overflow-y: auto;
