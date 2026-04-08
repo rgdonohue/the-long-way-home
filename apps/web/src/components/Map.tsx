@@ -410,7 +410,7 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
     const map = mapRef.current;
     if (map && config) {
       const [lon, lat] = config.coordinates;
-      map.flyTo({ center: [lon, lat], zoom: 13 });
+      map.flyTo({ center: [lon, lat], zoom: 13, padding: window.innerWidth > 768 ? { top: 0, bottom: 0, left: 0, right: 300 } : undefined });
     }
   }, [removeRouteAndDestination, clearResult, config]);
 
@@ -444,6 +444,10 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
 
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
+
+    if (window.innerWidth > 768) {
+      map.setPadding({ top: 0, bottom: 0, left: 0, right: 300 });
+    }
 
     mapRef.current = map;
 
