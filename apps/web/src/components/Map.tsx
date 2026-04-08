@@ -95,6 +95,8 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
   const [detourLoading, setDetourLoading] = useState(false);
   const [restoreReady, setRestoreReady] = useState(false);
   const [showRings, setShowRings] = useState(false);
+  const showRingsRef = useRef(false);
+  showRingsRef.current = showRings;
 
   const { polygon } = useServiceArea(origin?.[0], origin?.[1], mode);
   const { checkRoute, clearResult, result, isLoading, error } = useRouteCheck();
@@ -496,7 +498,7 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
         id: lineLayerId,
         type: "line",
         source: sourceId,
-        layout: { "line-join": "round", "line-cap": "round", "visibility": "none" },
+        layout: { "line-join": "round", "line-cap": "round", "visibility": showRingsRef.current ? "visible" : "none" },
         paint: {
           "line-color": "#C45B28",
           "line-opacity": 0.7,
