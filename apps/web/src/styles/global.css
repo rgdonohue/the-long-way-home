@@ -659,16 +659,14 @@ h1, h2, h3 {
   border: 1px solid rgba(44, 24, 16, 0.1);
   border-radius: 6px;
   z-index: 5;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
 }
 
-/* Toggle row: label + slider */
+/* Toggle: label stacked above switch */
 .ring-toggle {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   background: transparent;
   border: none;
   padding: 0;
@@ -714,6 +712,27 @@ h1, h2, h3 {
 
 .ring-toggle--active .ring-toggle__switch::after {
   transform: translateX(14px);
+}
+
+/* Animated expand/collapse wrapper for ring rows */
+.ring-legend__rows {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 0.28s ease;
+}
+
+.ring-legend__rows--open {
+  grid-template-rows: 1fr;
+}
+
+/* Inner div must have min-height: 0 for grid trick to work */
+.ring-legend__rows-inner {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 5px;
 }
 
 .ring-legend__row {
