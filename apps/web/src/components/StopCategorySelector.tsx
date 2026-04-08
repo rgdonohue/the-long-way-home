@@ -3,10 +3,10 @@ import type { PlaceCategory } from "../data/places";
 const OPTIONS: Array<{ value: PlaceCategory | null; label: string }> = [
   { value: null, label: "Any" },
   { value: "history", label: "History" },
-  { value: "art", label: "Art" },
-  { value: "scenic", label: "Scenic" },
-  { value: "food", label: "Food" },
   { value: "culture", label: "Culture" },
+  { value: "art", label: "Art" },
+  { value: "civic", label: "Landmarks" },
+  { value: "scenic", label: "Scenic" },
 ];
 
 interface StopCategorySelectorProps {

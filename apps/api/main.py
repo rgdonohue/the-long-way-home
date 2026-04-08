@@ -229,7 +229,7 @@ async def suggest_stop(
             fallback = True
 
     if not stops:
-        stops = select_from_static(route_coords, category)
+        stops = select_from_static(route_coords, category, mode=mode)
 
     source = stops[0]["source"] if stops else "none"
     logger.info(

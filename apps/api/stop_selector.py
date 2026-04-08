@@ -1,38 +1,46 @@
 """Stop selection — ORS candidate ranking and static fallback."""
+import csv
 import logging
 import math
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ORS POIs are only attempted for these categories.
-ORS_ELIGIBLE_CATEGORIES: frozenset = frozenset({"art", "food"})
+# ORS POI suspended; restore {"art", "food"} to re-enable
+ORS_ELIGIBLE_CATEGORIES: frozenset = frozenset()
 
 _MAX_DISTANCE_MILES = 1.0
 _EARTH_RADIUS_MILES = 3958.8
 
-# TODO: move to shared GeoJSON file — duplicated from apps/web/src/data/places.ts
-_STATIC_PLACES: list[dict] = [
-    {"name": "San Miguel Chapel", "category": "history", "coordinates": [-105.9374, 35.6808], "description": "Oldest church structure in the US, built around 1610"},
-    {"name": "Palace of the Governors", "category": "history", "coordinates": [-105.9398, 35.6872], "description": "Oldest continuously occupied public building in the US"},
-    {"name": "Loretto Chapel", "category": "history", "coordinates": [-105.9379, 35.6853], "description": "Famous for its mysterious spiral staircase"},
-    {"name": "Canyon Road Galleries", "category": "art", "coordinates": [-105.9295, 35.6815], "description": "Half-mile stretch with over 100 galleries and studios"},
-    {"name": "Georgia O'Keeffe Museum", "category": "art", "coordinates": [-105.9420, 35.6879], "description": "Dedicated to Georgia O'Keeffe and American Modernism"},
-    {"name": "Cathedral Basilica of St. Francis", "category": "history", "coordinates": [-105.9382, 35.6868], "description": "Romanesque Revival cathedral, centerpiece of downtown"},
-    {"name": "Santa Fe Plaza", "category": "culture", "coordinates": [-105.9395, 35.6870], "description": "Historic heart of the city since 1610"},
-    {"name": "Cross of the Martyrs", "category": "scenic", "coordinates": [-105.9440, 35.6900], "description": "Hilltop cross with panoramic views of the Sangre de Cristos"},
-    {"name": "Museum of International Folk Art", "category": "culture", "coordinates": [-105.9223, 35.6714], "description": "World's largest collection of international folk art"},
-    {"name": "Meow Wolf", "category": "art", "coordinates": [-105.9621, 35.6604], "description": "Immersive art experience in a converted bowling alley"},
-    {"name": "Railyard Arts District", "category": "art", "coordinates": [-105.9444, 35.6830], "description": "Galleries, studios, and the Saturday farmers market"},
-    {"name": "Museum of Indian Arts & Culture", "category": "culture", "coordinates": [-105.9225, 35.6720], "description": "Stories of Native peoples of the Southwest from prehistory to today"},
-    {"name": "El Santuario de Guadalupe", "category": "history", "coordinates": [-105.9435, 35.6845], "description": "Oldest shrine to Our Lady of Guadalupe in the US"},
-    {"name": "Cafe Pasqual's", "category": "food", "coordinates": [-105.9394, 35.6867], "description": "Iconic Santa Fe restaurant with creative New Mexican cuisine since 1979"},
-    {"name": "The Shed", "category": "food", "coordinates": [-105.9383, 35.6877], "description": "Beloved local spot for red and green chile since 1953"},
-    {"name": "Santa Fe River Trail", "category": "scenic", "coordinates": [-105.9437, 35.6836], "description": "Paved trail following the Santa Fe River through the city center"},
-    {"name": "Dale Ball Trails", "category": "scenic", "coordinates": [-105.9130, 35.6880], "description": "20+ miles of trails in pinon-juniper foothills with mountain views"},
-    {"name": "Lensic Performing Arts Center", "category": "culture", "coordinates": [-105.9412, 35.6862], "description": "Restored 1931 movie palace, now Santa Fe's premier performance venue"},
-    {"name": "Oldest House", "category": "history", "coordinates": [-105.9372, 35.6806], "description": "Adobe structure dating to around 1646, among the oldest in the US"},
-    {"name": "Kakawa Chocolate House", "category": "food", "coordinates": [-105.9374, 35.6857], "description": "Historic chocolate elixirs and handcrafted truffles"},
-]
+_CSV_PATH = Path(__file__).parent.parent.parent / "docs" / "data" / "query_capable_pois_frontend_seed.csv"
+
+
+def _load_places() -> list[dict]:
+    places = []
+    with open(_CSV_PATH, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["name"] == "?" or row["primary_category"] == "food":
+                continue
+            try:
+                lon = float(row["lon"])
+                lat = float(row["lat"])
+            except (ValueError, KeyError):
+                continue
+            walk_affinity = float(row["walk_affinity_hint"]) if row.get("walk_affinity_hint") else 0.5
+            drive_affinity = float(row["drive_affinity_hint"]) if row.get("drive_affinity_hint") else 0.5
+            places.append({
+                "name": row["name"],
+                "category": row["primary_category"],
+                "coordinates": [lon, lat],
+                "description": row["short_description"] or None,
+                "walk_affinity_hint": walk_affinity,
+                "drive_affinity_hint": drive_affinity,
+            })
+    logger.info("Loaded %d places from seed CSV", len(places))
+    return places
+
+
+_STATIC_PLACES: list[dict] = _load_places()
 
 
 def _haversine_miles(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
@@ -92,28 +100,36 @@ def select_from_static(
     route_coords: list[list[float]],
     category: str | None,
     top_n: int = 5,
+    mode: str = "drive",
 ) -> list[dict]:
-    """Return the top_n closest static places within 1 mile of the route."""
+    """Return the top_n best static places within 1 mile of the route.
+
+    Ranked by distance / affinity_hint so closer, more walkable (or driveable)
+    places score higher. Lower score wins.
+    """
     candidates = (
         [p for p in _STATIC_PLACES if p["category"] == category]
         if category
         else _STATIC_PLACES
     )
 
+    affinity_key = "walk_affinity_hint" if mode == "walk" else "drive_affinity_hint"
     scored: list[tuple[float, dict]] = []
 
     for place in candidates:
         lon, lat = place["coordinates"]
         dist = _min_dist_to_route(lon, lat, route_coords)
         if dist <= _MAX_DISTANCE_MILES:
-            scored.append((dist, {
+            affinity = place.get(affinity_key, 0.5) or 0.5
+            score = dist / affinity
+            scored.append((score, {
                 "name": place["name"],
                 "category": place["category"],
                 "coordinates": place["coordinates"],
                 "description": place["description"],
                 "distance_miles": dist,
                 "source": "static",
-                "source_category_note": "approximate" if category in ("scenic", "culture") else None,
+                "source_category_note": None,
             }))
 
     scored.sort(key=lambda x: x[0])

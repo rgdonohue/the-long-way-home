@@ -6,7 +6,7 @@
  * Coordinates are [longitude, latitude].
  */
 
-export type PlaceCategory = "history" | "art" | "food" | "scenic" | "culture";
+export type PlaceCategory = "history" | "art" | "scenic" | "culture" | "civic";
 
 export interface Place {
   name: string;
