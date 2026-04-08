@@ -180,6 +180,28 @@ export function VerdictPanel({
         </div>
       )}
 
+      {/* Itinerary summary — compact route-ordered list of selections */}
+      {selectedStops.length > 0 && !isLoading && (
+        <div className="itinerary-summary">
+          <p className="itinerary-summary__label">Your route</p>
+          <ol className="itinerary-summary__list">
+            {selectedStops.map((stop, i) => (
+              <li key={stop.name}>
+                <button
+                  type="button"
+                  className="itinerary-summary__item"
+                  onClick={() => onSelectStop?.(stop)}
+                >
+                  <span className="itinerary-summary__order">{i + 1}</span>
+                  <span className="itinerary-summary__name">{stop.name}</span>
+                  <span className="itinerary-summary__badge">{getCategoryLabel(stop.category)}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       {/* Stop suggestions list */}
       {!isLoading && (
         <div className="verdict-panel__stop">

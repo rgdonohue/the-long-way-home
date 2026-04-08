@@ -299,6 +299,7 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
       category: PlaceCategory | null,
       currentMiles: number,
       currentMode: TravelMode,
+      persistedStops: StopSuggestion[] = [],
     ): Promise<void> => {
       setStopLoading(true);
       setNearbyStops([]);
@@ -312,10 +313,13 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
         );
         const stops = res.stops ?? [];
         setNearbyStops(stops);
-        updateStopMarkers(stops);
+        // Merge persisted selections not in current results so their markers stay on the map
+        const names = new Set(stops.map((s) => s.name));
+        const extra = persistedStops.filter((s) => !names.has(s.name));
+        updateStopMarkers([...stops, ...extra]);
       } catch {
         console.error("suggest-stop failed");
-        updateStopMarkers([]);
+        updateStopMarkers([...persistedStops]);
       } finally {
         setStopLoading(false);
       }
@@ -833,18 +837,11 @@ export function Map({ resetRef, mode, onModeChange }: MapProps) {
   const handleCategoryChange = useCallback(
     (cat: PlaceCategory | null) => {
       setStopCategory(cat);
-      setShowingDetour(false);
-      setSelectedStops([]);
-      removeAltRoute();
-      detourRequestRef.current += 1;
-      setDetourResult(null);
-      setDetourLoading(false);
-
+      // Selections and route persist across category changes
       if (!result || !origin || !destination) return;
-
-      void fetchAndSetStops(origin, destination, cat, effectiveMilesFor(mode), mode);
+      void fetchAndSetStops(origin, destination, cat, effectiveMilesFor(mode), mode, selectedStops);
     },
-    [destination, fetchAndSetStops, mode, origin, removeAltRoute, result],
+    [destination, fetchAndSetStops, mode, origin, result, selectedStops],
   );
 
   const handleModeChange = useCallback(
