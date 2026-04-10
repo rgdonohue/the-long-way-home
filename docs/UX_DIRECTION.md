@@ -158,6 +158,8 @@ Detour is a Santa Fe walking/driving tour builder. Users click origin, click des
 
 **Recommendation for demo:** E1. Three to five hand-crafted tours. A "Browse Tours" entry point alongside the current click-to-start flow. This is the single most impressive thing you can show to a tourism stakeholder.
 
+> **Shipped (E1):** Downtown Santa Fe Loop — 14 curated stops, pre-authored 3.2-mile route, narrative descriptions. Gallery at `/tours`, viewer at `/tours/:slug`. Architecture: `docs/data/tours/*.json` files loaded by `apps/api/tour_loader.py` at startup. Adding tours 2–5 requires only a new JSON file — no code changes.
+
 ---
 
 ## Part 4: Mobile-Specific UX Considerations
@@ -205,11 +207,11 @@ For a stakeholder demo, you want to show:
 ### Option A: "Tour Templates" Demo Sprint
 **Focus:** Pre-built tours + share link + print view. Targets Maria and Diana.
 
-1. Define 3-5 curated tour data objects (stops, route, name, description, estimated time)
-2. "Browse Tours" landing/entry alongside current map
-3. "Share this tour" short-link generation (lightweight backend)
-4. Print-friendly CSS view
-5. Expand stop descriptions for template stops (3-4 sentences each)
+1. ✅ Define 3-5 curated tour data objects (stops, route, name, description, estimated time)
+2. ✅ "Browse Tours" landing/entry alongside current map
+3. ⬜ "Share this tour" short-link generation (lightweight backend)
+4. ⬜ Print-friendly CSS view
+5. ✅ Expand stop descriptions for template stops (3-4 sentences each — done for the 14 Downtown Loop stops; full CSV seed not yet expanded)
 
 **Effort:** Medium. **Impact:** High for stakeholder pitch. **Risk:** Low.
 
@@ -254,12 +256,12 @@ For the demo/MVP phase, **you don't need a traditional database.**
 | Need | Solution | Why not a DB? |
 |------|----------|---------------|
 | Stop content | Expanded CSV or JSON file in repo | 100-200 stops is tiny. Editorial workflow = edit file, commit, deploy. |
-| Tour templates | JSON file defining each template (name, stops[], description) | 3-5 templates is literally a config file. |
+| Tour templates | `docs/data/tours/*.json` — one file per tour, loaded by `tour_loader.py` at API startup | ✅ Shipped. Zero infrastructure. Adding a tour = new JSON file. |
 | Shared tour links | SQLite file or JSON append-log on server | Sub-1000 links doesn't need Postgres. SQLite is zero-config. |
 | User-saved tours | localStorage (device-only) or the URL itself | No accounts = no user table = no DB. |
 | Analytics (who visits what) | Server logs + Plausible/Umami (privacy-first analytics) | Don't build analytics infra. Use a hosted tool. |
 
-**When you'd actually need a database:** If tour guides want to create and manage their own tours (CRUD), if you add user accounts, if you want a tour marketplace. That's post-demo.
+**When you'd actually need a database:** If tour guides want to create and manage their own tours (CRUD), if you add user accounts, if you want a tour marketplace. That's post-demo. The flat-file approach handles up to ~30 tours comfortably.
 
 ### URL-Based Sharing (MVP)
 
