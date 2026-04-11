@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
-import { Routes, Route, Link } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { Map } from "./components/Map";
 import { ModeToggle } from "./components/ModeToggle";
+import { AppHeader } from "./components/AppHeader";
 import { TourGallery } from "./pages/TourGallery";
 import { TourViewer } from "./pages/TourViewer";
+import { ExplorePage } from "./pages/ExplorePage";
 import { parseShareableRouteState } from "./lib/urlState";
 import type { TravelMode } from "./lib/api";
 
@@ -16,20 +18,7 @@ function BuilderPage() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>Santa Fe Detour</h1>
-        <p>routes shaped by place</p>
-        <Link to="/tours" className="header-reset-btn" style={{ textDecoration: "none" }}>
-          Tours
-        </Link>
-        <button
-          type="button"
-          className="header-reset-btn"
-          onClick={() => resetRef.current()}
-        >
-          Reset
-        </button>
-      </header>
+      <AppHeader />
       <div className="app-mode-toggle-mobile">
         <ModeToggle mode={mode} onChange={(m) => modeChangeRef.current(m)} />
       </div>
@@ -49,6 +38,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<BuilderPage />} />
+      <Route path="/explore" element={<ExplorePage />} />
       <Route path="/tours" element={<TourGallery />} />
       <Route path="/tours/:slug" element={<TourViewer />} />
     </Routes>

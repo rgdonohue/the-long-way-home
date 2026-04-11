@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { AppHeader } from "../components/AppHeader";
 import { getTour } from "../lib/tourApi";
 import type { TourDefinition } from "../types/tour";
 import { TourMap } from "../components/tour/TourMap";
@@ -32,7 +33,7 @@ export function TourViewer() {
   if (state.status === "loading") {
     return (
       <div className="app">
-        <TourHeader />
+        <AppHeader />
         <div className="map-loading">Loading tour…</div>
       </div>
     );
@@ -41,7 +42,7 @@ export function TourViewer() {
   if (state.status === "error") {
     return (
       <div className="app">
-        <TourHeader />
+        <AppHeader />
         <div className="map-error">
           {state.message}
           <Link to="/tours" style={{ marginLeft: "0.5rem" }}>Browse tours</Link>
@@ -54,7 +55,7 @@ export function TourViewer() {
 
   return (
     <div className="app">
-      <TourHeader />
+      <AppHeader />
       <div className="app-map-wrapper">
         <div className="map-wrapper">
           <TourMap
@@ -70,19 +71,5 @@ export function TourViewer() {
         </div>
       </div>
     </div>
-  );
-}
-
-function TourHeader() {
-  return (
-    <header className="app-header">
-      <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-        <h1>Santa Fe Detour</h1>
-      </Link>
-      <p>routes shaped by place</p>
-      <Link to="/tours" className="header-reset-btn">
-        Tours
-      </Link>
-    </header>
   );
 }

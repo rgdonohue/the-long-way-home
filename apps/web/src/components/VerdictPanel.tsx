@@ -263,8 +263,8 @@ export function VerdictPanel({
         </div>
       )}
 
-      <div className="verdict-panel__actions">
-        {onBackToShortest && (
+      {onBackToShortest && (
+        <div className="verdict-panel__actions">
           <button
             type="button"
             className="verdict-panel__btn-secondary"
@@ -272,15 +272,8 @@ export function VerdictPanel({
           >
             {selectedStops.length > 1 ? `Clear stops (${selectedStops.length})` : "Shortest route"}
           </button>
-        )}
-        <button
-          type="button"
-          className="verdict-panel__btn-ghost"
-          onClick={onReset}
-        >
-          Reset map
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

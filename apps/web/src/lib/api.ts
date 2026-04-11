@@ -64,6 +64,28 @@ export interface SuggestStopResponse {
   fallback: boolean;
 }
 
+export interface PoiFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    name: string;
+    category: string;
+    wikipedia_title: string | null;
+    quality_score: number;
+  };
+}
+
+export interface PoisResponse {
+  type: "FeatureCollection";
+  features: PoiFeature[];
+}
+
+export async function getPois(signal?: AbortSignal): Promise<PoisResponse> {
+  const res = await fetchWithTimeout(`${API_BASE}/pois`, FETCH_TIMEOUT_MS, signal);
+  if (!res.ok) throw new Error(`POIs failed: ${res.status}`);
+  return res.json();
+}
+
 const FETCH_TIMEOUT_MS = 5000;
 const ROUTE_TIMEOUT_MS = 15000; // ORS can be slow; fail after 15s
 

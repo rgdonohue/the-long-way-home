@@ -1058,6 +1058,15 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       )}
       <aside className="app-sidebar">
         <ModeToggle mode={mode} onChange={handleModeChange} />
+        {origin && !showVerdictPanel && (
+          <button
+            type="button"
+            className="sidebar-reset-btn"
+            onClick={handleReset}
+          >
+            Reset
+          </button>
+        )}
         {!showVerdictPanel && (
           <div className="sidebar-intro">
             <h2>Explore Santa Fe {mode === "walk" ? "on foot" : "by car"}</h2>

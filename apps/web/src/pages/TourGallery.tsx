@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AppHeader } from "../components/AppHeader";
 import { getTours } from "../lib/tourApi";
 import type { TourSummary } from "../types/tour";
 
@@ -17,15 +18,7 @@ export function TourGallery() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-          <h1>Santa Fe Detour</h1>
-        </Link>
-        <p>routes shaped by place</p>
-        <Link to="/" className="header-reset-btn">
-          Build your own
-        </Link>
-      </header>
+      <AppHeader />
 
       <div className="tour-gallery">
         <div className="tour-gallery__header">

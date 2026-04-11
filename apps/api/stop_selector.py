@@ -11,6 +11,7 @@ ORS_ELIGIBLE_CATEGORIES: frozenset = frozenset()
 
 _MAX_DISTANCE_MILES = 1.0
 _EARTH_RADIUS_MILES = 3958.8
+_VALID_CATEGORIES: frozenset = frozenset({"history", "art", "scenic", "culture", "civic"})
 
 _CSV_PATH = Path(__file__).parent.parent.parent / "docs" / "data" / "query_capable_pois_frontend_seed.csv"
 
@@ -21,6 +22,8 @@ def _load_places() -> list[dict]:
         for row in csv.DictReader(f):
             if row["name"] == "?" or row["primary_category"] == "food":
                 continue
+            if row["primary_category"] not in _VALID_CATEGORIES:
+                continue
             try:
                 lon = float(row["lon"])
                 lat = float(row["lat"])
@@ -28,19 +31,59 @@ def _load_places() -> list[dict]:
                 continue
             walk_affinity = float(row["walk_affinity_hint"]) if row.get("walk_affinity_hint") else 0.5
             drive_affinity = float(row["drive_affinity_hint"]) if row.get("drive_affinity_hint") else 0.5
+            try:
+                quality_score = float(row["quality_score"]) if row.get("quality_score") else 50.0
+            except ValueError:
+                quality_score = 50.0
+            try:
+                display_priority = int(row["display_priority"]) if row.get("display_priority") else 50
+            except ValueError:
+                display_priority = 50
+            wikipedia_title = (row.get("wikipedia_title") or "").strip() or None
             places.append({
                 "name": row["name"],
                 "category": row["primary_category"],
                 "coordinates": [lon, lat],
                 "description": row["short_description"] or None,
+                "wikipedia_title": wikipedia_title,
                 "walk_affinity_hint": walk_affinity,
                 "drive_affinity_hint": drive_affinity,
+                "quality_score": quality_score,
+                "display_priority": display_priority,
             })
     logger.info("Loaded %d places from seed CSV", len(places))
     return places
 
 
 _STATIC_PLACES: list[dict] = _load_places()
+
+
+def get_all_places_geojson(category: str | None = None) -> dict:
+    """Return all POIs as a GeoJSON FeatureCollection of Points.
+
+    Optionally filtered by primary_category. Used by the /api/pois endpoint
+    to power the always-visible exploration layer on the map.
+    """
+    pois = (
+        [p for p in _STATIC_PLACES if p["category"] == category]
+        if category else _STATIC_PLACES
+    )
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": p["coordinates"]},
+                "properties": {
+                    "name": p["name"],
+                    "category": p["category"],
+                    "wikipedia_title": p["wikipedia_title"],
+                    "quality_score": p["quality_score"],
+                },
+            }
+            for p in pois
+        ],
+    }
 
 
 def _haversine_miles(lon1: float, lat1: float, lon2: float, lat2: float) -> float:

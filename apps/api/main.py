@@ -13,7 +13,7 @@ from config import settings
 from conversion import miles_to_meters
 from ors_client import get_isodistance, get_shortest_route
 from poi_client import get_pois_along_route
-from stop_selector import ORS_ELIGIBLE_CATEGORIES, select_from_ors, select_from_static
+from stop_selector import ORS_ELIGIBLE_CATEGORIES, get_all_places_geojson, select_from_ors, select_from_static
 from tour_loader import get_tour, list_tours
 
 logger = logging.getLogger(__name__)
@@ -243,6 +243,16 @@ async def suggest_stop(
     )
 
     return {"stops": stops, "fallback": fallback}
+
+
+@app.get("/api/pois")
+def get_pois(category: str | None = None):
+    """Return all POIs as a GeoJSON FeatureCollection of Points.
+
+    Optionally filtered by category (history|art|scenic|culture|civic).
+    Used by the frontend exploration layer shown before route-building.
+    """
+    return get_all_places_geojson(category)
 
 
 @app.get("/api/tours")
