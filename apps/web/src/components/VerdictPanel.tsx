@@ -223,7 +223,7 @@ export function VerdictPanel({
                   const orderIdx = selectedStops.findIndex((s) => s.name === stop.name);
                   const isSelected = orderIdx >= 0;
                   return (
-                    <li key={stop.name}>
+                    <li key={stop.poi_id ?? stop.name}>
                       <button
                         type="button"
                         className={`stop-list__item${isSelected ? " stop-list__item--selected" : ""}`}

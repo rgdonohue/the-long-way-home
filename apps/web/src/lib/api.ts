@@ -50,11 +50,13 @@ export interface RouteResponse {
 }
 
 export interface StopSuggestion {
+  poi_id: string | null;
   name: string;
   category: string;
   coordinates: [number, number];
   description: string | null;
   distance_miles: number;
+  route_position?: number;
   source: "ors" | "static";
   source_category_note: "approximate" | null;
 }

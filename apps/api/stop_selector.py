@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # ORS POI suspended; restore {"art", "food"} to re-enable
 ORS_ELIGIBLE_CATEGORIES: frozenset = frozenset()
 
-_MAX_DISTANCE_MILES = 1.0
+_MAX_DISTANCE_MILES = 0.25
 _EARTH_RADIUS_MILES = 3958.8
 _VALID_CATEGORIES: frozenset = frozenset({"history", "art", "scenic", "culture", "civic"})
 
@@ -18,12 +18,19 @@ _CSV_PATH = Path(__file__).parent / "data" / "query_capable_pois_frontend_seed.c
 
 def _load_places() -> list[dict]:
     places = []
+    seen_dedupe_keys: set[str] = set()
     with open(_CSV_PATH, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             if row["name"] == "?" or row["primary_category"] == "food":
                 continue
             if row["primary_category"] not in _VALID_CATEGORIES:
                 continue
+            # Skip duplicate physical locations (same OSM entity, different CSV rows)
+            dedupe_key = (row.get("dedupe_key") or "").strip()
+            if dedupe_key and dedupe_key in seen_dedupe_keys:
+                continue
+            if dedupe_key:
+                seen_dedupe_keys.add(dedupe_key)
             try:
                 lon = float(row["lon"])
                 lat = float(row["lat"])
@@ -40,7 +47,9 @@ def _load_places() -> list[dict]:
             except ValueError:
                 display_priority = 50
             wikipedia_title = (row.get("wikipedia_title") or "").strip() or None
+            poi_id = (row.get("poi_id") or "").strip() or None
             places.append({
+                "poi_id": poi_id,
                 "name": row["name"],
                 "category": row["primary_category"],
                 "coordinates": [lon, lat],
@@ -104,6 +113,20 @@ def _min_dist_to_route(lon: float, lat: float, route_coords: list[list[float]]) 
     return min(_haversine_miles(lon, lat, c[0], c[1]) for c in route_coords)
 
 
+def _min_dist_to_route_with_index(
+    lon: float, lat: float, route_coords: list[list[float]]
+) -> tuple[float, int]:
+    """Return (min_distance_miles, closest_vertex_index) for a point against the route."""
+    best_dist = math.inf
+    best_idx = 0
+    for i, c in enumerate(route_coords):
+        d = _haversine_miles(lon, lat, c[0], c[1])
+        if d < best_dist:
+            best_dist = d
+            best_idx = i
+    return best_dist, best_idx
+
+
 def select_from_ors(
     candidates: list[dict],
     route_coords: list[list[float]],
@@ -142,13 +165,13 @@ def select_from_ors(
 def select_from_static(
     route_coords: list[list[float]],
     category: str | None,
-    top_n: int = 5,
+    top_n: int = 5,  # kept for ORS fallback compat; ignored for static results
     mode: str = "drive",
 ) -> list[dict]:
-    """Return the top_n best static places within 1 mile of the route.
+    """Return all static places within 0.25 miles of the route, ordered origin-to-destination.
 
-    Ranked by distance / affinity_hint so closer, more walkable (or driveable)
-    places score higher. Lower score wins.
+    Each result includes a route_position (closest vertex index) so the caller and
+    frontend can rely on the list being in geographic sequence along the route.
     """
     candidates = (
         [p for p in _STATIC_PLACES if p["category"] == category]
@@ -156,24 +179,23 @@ def select_from_static(
         else _STATIC_PLACES
     )
 
-    affinity_key = "walk_affinity_hint" if mode == "walk" else "drive_affinity_hint"
-    scored: list[tuple[float, dict]] = []
+    results: list[dict] = []
 
     for place in candidates:
         lon, lat = place["coordinates"]
-        dist = _min_dist_to_route(lon, lat, route_coords)
+        dist, route_pos = _min_dist_to_route_with_index(lon, lat, route_coords)
         if dist <= _MAX_DISTANCE_MILES:
-            affinity = place.get(affinity_key, 0.5) or 0.5
-            score = dist / affinity
-            scored.append((score, {
+            results.append({
+                "poi_id": place["poi_id"],
                 "name": place["name"],
                 "category": place["category"],
                 "coordinates": place["coordinates"],
                 "description": place["description"],
                 "distance_miles": dist,
+                "route_position": route_pos,
                 "source": "static",
                 "source_category_note": None,
-            }))
+            })
 
-    scored.sort(key=lambda x: x[0])
-    return [s[1] for s in scored[:top_n]]
+    results.sort(key=lambda x: x["route_position"])
+    return results
