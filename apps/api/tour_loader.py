@@ -5,7 +5,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_TOURS_DIR = Path(__file__).parent.parent.parent / "docs" / "data" / "tours"
+_TOURS_DIR = Path(__file__).parent / "data" / "tours"
 
 _SUMMARY_KEYS = {"slug", "name", "tagline", "mode", "distance_miles", "duration_minutes"}
 
