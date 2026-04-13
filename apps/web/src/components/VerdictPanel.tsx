@@ -162,6 +162,13 @@ export function VerdictPanel({
           <span className="verdict-panel__metric">{distance_miles.toFixed(1)} mi</span>
           <span className="verdict-panel__metric-sep">·</span>
           <span className="verdict-panel__metric">{formatDuration(duration_seconds)}</span>
+          <button
+            type="button"
+            className="verdict-panel__reset"
+            onClick={onReset}
+          >
+            Reset
+          </button>
         </div>
       )}
 

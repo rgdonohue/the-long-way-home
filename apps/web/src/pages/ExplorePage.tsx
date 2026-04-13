@@ -1,16 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AppHeader } from "../components/AppHeader";
 import { ExploreMap, type SelectedPoi } from "../components/explore/ExploreMap";
-import type { PlaceCategory } from "../data/places";
+import { CATEGORY_COLORS, type PlaceCategory } from "../data/places";
 
 const ALL_CATEGORIES: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
 
 const CATEGORY_META: Record<PlaceCategory, { label: string; color: string; count: number }> = {
-  history: { label: "History",   color: "#9b6b4a", count: 142 },
-  art:     { label: "Art",       color: "#8b5e8b", count: 117 },
-  scenic:  { label: "Scenic",    color: "#5a8a6a", count: 112 },
-  culture: { label: "Culture",   color: "#c2783c", count: 79  },
-  civic:   { label: "Landmarks", color: "#6a7d99", count: 65  },
+  history: { label: "History",   color: CATEGORY_COLORS.history, count: 142 },
+  art:     { label: "Art",       color: CATEGORY_COLORS.art,     count: 117 },
+  scenic:  { label: "Scenic",    color: CATEGORY_COLORS.scenic,  count: 112 },
+  culture: { label: "Culture",   color: CATEGORY_COLORS.culture, count: 79  },
+  civic:   { label: "Landmarks", color: CATEGORY_COLORS.civic,   count: 65  },
 };
 
 function defaultActiveCategories(): Set<PlaceCategory> {

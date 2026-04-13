@@ -14,7 +14,7 @@ import { useServiceArea } from "../hooks/useServiceArea";
 import { useRouteCheck, type RouteCheckResult } from "../hooks/useRouteCheck";
 import { VerdictPanel } from "./VerdictPanel";
 import { ModeToggle } from "./ModeToggle";
-import type { PlaceCategory } from "../data/places";
+import { CATEGORY_COLORS, type PlaceCategory } from "../data/places";
 import {
   parseShareableRouteState,
   replaceShareableRouteState,
@@ -274,6 +274,8 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       stops.forEach((stop) => {
         const el = document.createElement("div");
         el.className = "stop-marker";
+        const color = CATEGORY_COLORS[stop.category as PlaceCategory];
+        if (color) el.style.setProperty("--stop-marker-color", color);
 
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat(stop.coordinates)
@@ -353,7 +355,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     }
     map.fitBounds(
       [[minLon, minLat], [maxLon, maxLat]],
-      { padding: { top: 80, bottom: 80, left: 80, right: 380 }, duration: 800, maxZoom: 16 },
+      { padding: 80, duration: 800, maxZoom: 16 },
     );
   }, []);
 
@@ -458,7 +460,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     const map = mapRef.current;
     if (map && config) {
       const [lon, lat] = config.coordinates;
-      map.flyTo({ center: [lon, lat], zoom: 13, padding: window.innerWidth > 768 ? { top: 0, bottom: 0, left: 0, right: 300 } : undefined });
+      map.flyTo({ center: [lon, lat], zoom: 13 });
     }
   }, [removeRouteAndDestination, clearResult, config]);
 
@@ -493,6 +495,10 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
 
+    // Keep the camera center in the visible (non-sidebar) area at all times.
+    // This means fitBounds, flyTo, and free panning all operate in the same
+    // coordinate space — the user can pan to visually centre anything without
+    // it sliding under the sidebar panel.
     if (window.innerWidth > 768) {
       map.setPadding({ top: 0, bottom: 0, left: 0, right: 300 });
     }
@@ -761,7 +767,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
         clickTimeout = null;
         if (isCheckingRef.current || isLoading) return;
 
-        if (clickPhase === "set-origin" || clickPhase === "route-shown") {
+        if (clickPhase === "set-origin") {
           detourRequestRef.current += 1;
           removeRouteAndDestination();
           clearResult();
@@ -865,7 +871,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
         const detour = toRouteCheckResult(data);
         setDetourResult(detour);
         applyDetourToMap(detour, result);
-        fitRouteBounds(detour.route.geometry.coordinates);
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
         // Keep selection visible; loading clears below
@@ -873,7 +878,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
         if (detourRequestRef.current === reqId) setDetourLoading(false);
       }
     },
-    [applyDetourToMap, destination, fitRouteBounds, mode, origin, removeAltRoute, renderRouteLine, result, selectedStops],
+    [applyDetourToMap, destination, mode, origin, removeAltRoute, renderRouteLine, result, selectedStops],
   );
 
   // Keep ref current so map marker click handlers always call the latest version
@@ -881,12 +886,15 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     onStopClickRef.current = handleSelectStop;
   }, [handleSelectStop]);
 
-  // Sync selected-stop purple affordance and order badges on map markers
+  // Sync selected-stop affordance, order badges, and dim unselected markers
   useEffect(() => {
+    const hasSelection = selectedStops.length > 0;
     stopMarkersRef.current.forEach(({ stop, el }) => {
       const idx = selectedStops.findIndex((s) => s.name === stop.name);
-      el.classList.toggle("stop-marker--selected", idx >= 0);
-      el.dataset.order = idx >= 0 ? String(idx + 1) : "";
+      const isSelected = idx >= 0;
+      el.classList.toggle("stop-marker--selected", isSelected);
+      el.dataset.order = isSelected ? String(idx + 1) : "";
+      el.style.opacity = hasSelection && !isSelected ? "0.3" : "";
     });
   }, [selectedStops]);
 
@@ -973,7 +981,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
             const detour = toRouteCheckResult(viaData);
             setDetourResult(detour);
             applyDetourToMap(detour, directResult);
-            fitRouteBounds(detour.route.geometry.coordinates);
           } catch (err) {
             if (err instanceof Error && err.name === "AbortError") return;
             if (detourRequestRef.current === reqId) setSelectedStops([]);
@@ -1058,15 +1065,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       )}
       <aside className="app-sidebar">
         <ModeToggle mode={mode} onChange={handleModeChange} />
-        {origin && !showVerdictPanel && (
-          <button
-            type="button"
-            className="sidebar-reset-btn"
-            onClick={handleReset}
-          >
-            Reset
-          </button>
-        )}
         {!showVerdictPanel && (
           <div className="sidebar-intro">
             <h2>Explore Santa Fe {mode === "walk" ? "on foot" : "by car"}</h2>

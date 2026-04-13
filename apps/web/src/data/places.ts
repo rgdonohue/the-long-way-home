@@ -8,6 +8,14 @@
 
 export type PlaceCategory = "history" | "art" | "scenic" | "culture" | "civic";
 
+export const CATEGORY_COLORS: Record<PlaceCategory, string> = {
+  history: "#9b6b4a",
+  art:     "#8b5e8b",
+  scenic:  "#5a8a6a",
+  culture: "#c2783c",
+  civic:   "#6a7d99",
+};
+
 export interface Place {
   name: string;
   category: PlaceCategory;

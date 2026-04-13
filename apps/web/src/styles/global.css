@@ -275,24 +275,6 @@ h1, h2, h3 {
   pointer-events: none;
 }
 
-/* Reset button in sidebar, shown after origin is set but before verdict */
-.sidebar-reset-btn {
-  margin: 0.5rem 1.125rem 0.75rem auto;
-  padding: 0.35rem 0.75rem;
-  align-self: flex-end;
-  background: transparent;
-  border: 1px solid rgba(44, 24, 16, 0.2);
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.sidebar-reset-btn:hover {
-  border-color: var(--terracotta);
-  color: var(--terracotta);
-}
 
 /* Sidebar intro: shown before any route is computed */
 .sidebar-intro {
@@ -399,12 +381,29 @@ h1, h2, h3 {
   background: var(--route-outside);
 }
 
-/* Metrics block: distance · duration */
+/* Metrics block: distance · duration · reset */
 .verdict-panel__metrics {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.375rem;
   margin: 0 0 0.25rem;
+}
+
+.verdict-panel__reset {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.verdict-panel__reset:hover {
+  color: var(--dark-brown);
 }
 
 .verdict-panel__metric {
@@ -599,21 +598,22 @@ h1, h2, h3 {
   color: var(--warm-cream);
 }
 
-/* Stop marker on the map — orange circle */
+/* Stop marker on the map — colored by category */
 .stop-marker {
   width: 12px;
   height: 12px;
-  background: var(--terracotta);
+  background: var(--stop-marker-color, var(--terracotta));
   border: 2px solid white;
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
   cursor: pointer;
-  transition: transform 0.12s;
+  transition: transform 0.12s, opacity 0.2s;
 }
 
 .stop-marker:hover {
   transform: scale(1.3);
 }
+
 
 .stop-marker--selected {
   background: var(--stop-selected);
