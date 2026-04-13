@@ -21,15 +21,15 @@ export function AppHeader({ actions }: AppHeaderProps) {
             "app-header__nav-link" + (isActive ? " app-header__nav-link--active" : "")
           }
         >
-          Build
+          Explore
         </NavLink>
         <NavLink
-          to="/explore"
+          to="/build"
           className={({ isActive }) =>
             "app-header__nav-link" + (isActive ? " app-header__nav-link--active" : "")
           }
         >
-          Explore
+          Build
         </NavLink>
         <NavLink
           to="/tours"

@@ -37,8 +37,8 @@ function BuilderPage() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<BuilderPage />} />
-      <Route path="/explore" element={<ExplorePage />} />
+      <Route path="/" element={<ExplorePage />} />
+      <Route path="/build" element={<BuilderPage />} />
       <Route path="/tours" element={<TourGallery />} />
       <Route path="/tours/:slug" element={<TourViewer />} />
     </Routes>

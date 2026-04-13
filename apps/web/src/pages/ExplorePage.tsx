@@ -197,7 +197,7 @@ function PoiDetail({
             Wikipedia →
           </a>
         )}
-        <Link to="/" className="explore-poi-detail__cta">
+        <Link to="/build" className="explore-poi-detail__cta">
           Build a route from here →
         </Link>
       </div>
