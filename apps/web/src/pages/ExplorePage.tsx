@@ -1,5 +1,4 @@
-import { useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { AppHeader } from "../components/AppHeader";
 import { ExploreMap, type SelectedPoi } from "../components/explore/ExploreMap";
 import type { PlaceCategory } from "../data/places";
@@ -21,6 +20,38 @@ function defaultActiveCategories(): Set<PlaceCategory> {
 export function ExplorePage() {
   const [activeCategories, setActiveCategories] = useState<Set<PlaceCategory>>(defaultActiveCategories);
   const [selectedPoi, setSelectedPoi] = useState<SelectedPoi | null>(null);
+
+  // displayedPoi is what's actually in the DOM; selectedPoi is the intent.
+  // They diverge during the fade-out phase of a transition.
+  const [displayedPoi, setDisplayedPoi] = useState<SelectedPoi | null>(null);
+  const [fadingOut, setFadingOut] = useState(false);
+  const displayedPoiRef = useRef<SelectedPoi | null>(null);
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (transitionTimer.current) {
+      clearTimeout(transitionTimer.current);
+      transitionTimer.current = null;
+    }
+
+    const current = displayedPoiRef.current;
+    const isSame = current?.name === selectedPoi?.name;
+
+    if (current === null || isSame) {
+      // First show or same POI re-clicked — no transition needed
+      displayedPoiRef.current = selectedPoi;
+      setDisplayedPoi(selectedPoi);
+    } else {
+      // Fade out current, then swap in the new one
+      setFadingOut(true);
+      transitionTimer.current = setTimeout(() => {
+        displayedPoiRef.current = selectedPoi;
+        setDisplayedPoi(selectedPoi);
+        setFadingOut(false);
+        transitionTimer.current = null;
+      }, 180);
+    }
+  }, [selectedPoi]);
 
   const handleToggle = useCallback((cat: PlaceCategory) => {
     setActiveCategories((prev) => {
@@ -47,16 +78,16 @@ export function ExplorePage() {
         <div className="map-wrapper">
           <ExploreMap activeCategories={activeCategories} onPoiSelect={setSelectedPoi} />
           <aside className="app-sidebar explore-sidebar">
-            {selectedPoi ? (
+            <ExplorePanel
+              activeCategories={activeCategories}
+              onToggle={handleToggle}
+              onToggleAll={handleToggleAll}
+            />
+            {displayedPoi && (
               <PoiDetail
-                poi={selectedPoi}
-                onClose={() => setSelectedPoi(null)}
-              />
-            ) : (
-              <ExplorePanel
-                activeCategories={activeCategories}
-                onToggle={handleToggle}
-                onToggleAll={handleToggleAll}
+                key={displayedPoi.name}
+                poi={displayedPoi}
+                fadingOut={fadingOut}
               />
             )}
           </aside>
@@ -106,18 +137,18 @@ function ExplorePanel({
                 onChange={() => onToggle(cat)}
               />
               <span
-                className="explore-legend__dot"
-                style={{ background: color }}
-              />
+                className={`explore-legend__switch${isOn ? " explore-legend__switch--on" : ""}`}
+                style={isOn ? { background: color } : undefined}
+                aria-hidden="true"
+              >
+                <span className="explore-legend__switch-thumb" />
+              </span>
               <span className="explore-legend__label">{label}</span>
               <span className="explore-legend__count">{count}</span>
             </label>
           );
         })}
       </div>
-      <p className="explore-panel__hint">
-        Click the map to set a start point and build a route.
-      </p>
     </div>
   );
 }
@@ -126,13 +157,7 @@ function toTitleCase(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function PoiDetail({
-  poi,
-  onClose,
-}: {
-  poi: SelectedPoi;
-  onClose: () => void;
-}) {
+function PoiDetail({ poi, fadingOut }: { poi: SelectedPoi; fadingOut: boolean }) {
   const meta = CATEGORY_META[poi.category as PlaceCategory];
   const label = meta?.label ?? poi.category;
   const color = meta?.color ?? "#999";
@@ -151,15 +176,7 @@ function PoiDetail({
     : [];
 
   return (
-    <div className="explore-poi-detail">
-      <button
-        type="button"
-        className="explore-poi-detail__close"
-        onClick={onClose}
-        aria-label="Back to all places"
-      >
-        ← All places
-      </button>
+    <div className={`explore-poi-detail${fadingOut ? " explore-poi-detail--fade-out" : ""}`}>
       <strong className="explore-poi-detail__name">{poi.name}</strong>
       <div className="explore-poi-detail__meta">
         <span
@@ -186,21 +203,16 @@ function PoiDetail({
           ))}
         </div>
       )}
-      <div className="explore-poi-detail__actions">
-        {wikiUrl && (
-          <a
-            href={wikiUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="explore-poi-detail__wiki-link"
-          >
-            Wikipedia →
-          </a>
-        )}
-        <Link to="/build" className="explore-poi-detail__cta">
-          Build a route from here →
-        </Link>
-      </div>
+      {wikiUrl && (
+        <a
+          href={wikiUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="explore-poi-detail__wiki-link"
+        >
+          Wikipedia →
+        </a>
+      )}
     </div>
   );
 }

@@ -9,7 +9,6 @@ const TONER_LITE_URL =
 
 const POI_SOURCE_ID = "pois";
 const POI_CIRCLE_LAYER_ID = "poi-circles";
-const POI_LABEL_LAYER_ID = "poi-labels";
 
 const ALL_CATEGORIES: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
 
@@ -118,37 +117,10 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
                 },
               });
 
-              map.addLayer({
-                id: POI_LABEL_LAYER_ID,
-                type: "symbol",
-                source: POI_SOURCE_ID,
-                minzoom: 14,
-                layout: {
-                  "text-field": ["get", "name"],
-                  "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-                  "text-size": [
-                    "interpolate", ["linear"], ["zoom"],
-                    14, 11,
-                    16, 13,
-                  ],
-                  "text-offset": [0, 1.2],
-                  "text-anchor": "top",
-                  "text-allow-overlap": false,
-                  "text-optional": true,
-                  "symbol-sort-key": ["-", 100, ["get", "quality_score"]],
-                },
-                paint: {
-                  "text-color": "#2c1810",
-                  "text-halo-color": "rgba(250, 247, 242, 0.9)",
-                  "text-halo-width": 1.5,
-                },
-              });
-
               // Apply initial filter
               const initialFilter = buildCategoryFilter(activeCategoriesRef.current);
               if (initialFilter) {
                 map.setFilter(POI_CIRCLE_LAYER_ID, initialFilter);
-                map.setFilter(POI_LABEL_LAYER_ID, initialFilter);
               }
 
               // Hover tooltip — name only
@@ -157,7 +129,7 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
                 closeOnClick: false,
                 offset: 10,
                 anchor: "bottom",
-                className: "stop-tooltip-popup", // reuse existing tooltip style
+                className: "explore-hover-popup",
               });
 
               const handleMouseEnter = (e: maplibregl.MapLayerMouseEvent) => {
@@ -204,11 +176,17 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
                 });
               };
 
-              for (const layerId of [POI_CIRCLE_LAYER_ID, POI_LABEL_LAYER_ID]) {
-                map.on("mouseenter", layerId, handleMouseEnter);
-                map.on("mouseleave", layerId, handleMouseLeave);
-                map.on("click", layerId, handlePoiClick);
-              }
+              map.on("mouseenter", POI_CIRCLE_LAYER_ID, handleMouseEnter);
+              map.on("mouseleave", POI_CIRCLE_LAYER_ID, handleMouseLeave);
+              map.on("click", POI_CIRCLE_LAYER_ID, handlePoiClick);
+
+              // Clicking the map background deselects any open POI
+              map.on("click", (e) => {
+                const hits = map.queryRenderedFeatures(e.point, {
+                  layers: [POI_CIRCLE_LAYER_ID],
+                });
+                if (!hits.length) onPoiSelect(null);
+              });
             })
             .catch((err) => console.warn("Failed to load POI layer:", err));
         });
@@ -227,7 +205,6 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
     if (!map || !map.getLayer(POI_CIRCLE_LAYER_ID)) return;
     const filter = buildCategoryFilter(activeCategories);
     map.setFilter(POI_CIRCLE_LAYER_ID, filter);
-    map.setFilter(POI_LABEL_LAYER_ID, filter);
   }, [activeCategories]);
 
   return <div ref={containerRef} className="map-container" />;

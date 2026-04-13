@@ -660,6 +660,26 @@ h1, h2, h3 {
   border-bottom-color: rgba(250, 247, 242, 0.97);
 }
 
+/* Explore map hover tooltip */
+.explore-hover-popup .maplibregl-popup-content {
+  padding: 5px 9px;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--dark-brown);
+  background: rgba(250, 247, 242, 0.97);
+  border: 1px solid rgba(44, 24, 16, 0.1);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.12);
+  max-width: 220px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.explore-hover-popup .maplibregl-popup-tip {
+  border-bottom-color: rgba(250, 247, 242, 0.97);
+}
+
 /* POI exploration detail popup */
 .poi-detail-popup .maplibregl-popup-content {
   padding: 0.75rem 1rem;
@@ -791,7 +811,7 @@ h1, h2, h3 {
 .explore-legend__row {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   transition: background 0.1s;
@@ -811,20 +831,37 @@ h1, h2, h3 {
 }
 
 .explore-legend__checkbox {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  accent-color: var(--terracotta);
-  cursor: pointer;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
-.explore-legend__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.explore-legend__switch {
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(44, 24, 16, 0.18);
   flex-shrink: 0;
-  border: 1.5px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
+  position: relative;
+  transition: background 0.18s;
+}
+
+.explore-legend__switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: left 0.18s;
+}
+
+.explore-legend__switch--on .explore-legend__switch-thumb {
+  left: 17px;
 }
 
 .explore-legend__label {
@@ -840,27 +877,29 @@ h1, h2, h3 {
 }
 
 /* POI detail panel */
+@keyframes poi-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes poi-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
 .explore-poi-detail {
-  padding: 1.25rem 1rem;
+  padding: 1.25rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  border-top: 1px solid rgba(44, 24, 16, 0.1);
+  animation: poi-fade-in 0.2s ease;
 }
 
-.explore-poi-detail__close {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-  margin-bottom: 0.25rem;
+.explore-poi-detail--fade-out {
+  animation: poi-fade-out 0.18s ease forwards;
 }
 
-.explore-poi-detail__close:hover {
-  color: var(--dark-brown);
-}
 
 .explore-poi-detail__name {
   display: block;
@@ -914,12 +953,6 @@ h1, h2, h3 {
   padding: 0.1rem 0.4rem;
 }
 
-.explore-poi-detail__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
 
 .explore-poi-detail__wiki-link {
   font-size: 0.875rem;
@@ -932,17 +965,6 @@ h1, h2, h3 {
   text-decoration: underline;
 }
 
-.explore-poi-detail__cta {
-  display: inline-block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--terracotta);
-  text-decoration: none;
-}
-
-.explore-poi-detail__cta:hover {
-  text-decoration: underline;
-}
 
 /* Itinerary summary — compact route-ordered list of selected stops */
 .itinerary-summary {
