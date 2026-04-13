@@ -22,7 +22,7 @@ import {
 
 const CLICK_DEBOUNCE_MS = 300;
 const TONER_LITE_URL =
-  "https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png";
+  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
 
 const ROUTE_COLOR = "#C45B28";       // terracotta — used for all routes
 const ROUTE_OUTSIDE_COLOR = "#B8432F"; // outside-limit override

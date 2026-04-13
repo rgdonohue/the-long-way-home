@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import type { TourDefinition, TourStop } from "../../types/tour";
 
 const TONER_LITE_URL =
-  "https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png";
+  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
 const ROUTE_COLOR = "#C45B28";
 const ROUTE_SOURCE = "tour-route";
 const ROUTE_LAYER = "tour-route-line";
@@ -62,7 +62,7 @@ export function TourMap({ tour, activeStopIndex, onStopClick }: TourMapProps) {
             tiles: [TONER_LITE_URL],
             tileSize: 256,
             attribution:
-              '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://stamen.com/">Stamen Design</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+              '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           },
         },
         layers: [
