@@ -134,8 +134,11 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
   const [restoreReady, setRestoreReady] = useState(false);
   const [showRings, setShowRings] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [showAllStops, setShowAllStops] = useState(false);
   const showRingsRef = useRef(false);
   showRingsRef.current = showRings;
+  const showAllStopsRef = useRef(false);
+  showAllStopsRef.current = showAllStops;
 
   const { polygon } = useServiceArea(origin?.[0], origin?.[1], mode);
   const { checkRoute, clearResult, result, isLoading, error } = useRouteCheck();
@@ -300,8 +303,11 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
         }
 
         const marker = new maplibregl.Marker({ element: el })
-          .setLngLat(stop.coordinates)
-          .addTo(map);
+          .setLngLat(stop.coordinates);
+
+        if (el.dataset.proximity === "near" || showAllStopsRef.current) {
+          marker.addTo(map);
+        }
 
         el.addEventListener("mouseenter", () => {
           popup.setHTML(stop.name).setLngLat(stop.coordinates).addTo(map);
@@ -477,6 +483,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     setShowingDetour(false);
     setDetourLoading(false);
     setShowRings(false);
+    setShowAllStops(false);
     clearResult();
     setClickPhase("set-origin");
     const map = mapRef.current;
@@ -910,28 +917,45 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     onStopClickRef.current = handleSelectStop;
   }, [handleSelectStop]);
 
+  // Add/remove markers based on proximity tier and showAllStops toggle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    stopMarkersRef.current.forEach(({ el, marker }) => {
+      const tier = el.dataset.proximity;
+      const shouldShow = tier === "near" || showAllStops;
+      const isOnMap = el.parentNode !== null;
+      if (shouldShow && !isOnMap) {
+        el.style.opacity = "0";
+        marker.addTo(map);
+        requestAnimationFrame(() => { el.style.opacity = ""; });
+      } else if (!shouldShow && isOnMap) {
+        marker.remove();
+      }
+    });
+  }, [showAllStops, nearbyStops]);
+
   // Sync selected-stop affordance, order badges, and dim unselected markers
   useEffect(() => {
+    const map = mapRef.current;
     const hasSelection = selectedStops.length > 0;
-    stopMarkersRef.current.forEach(({ stop, el }) => {
+    stopMarkersRef.current.forEach(({ stop, el, marker }) => {
       const idx = selectedStops.findIndex((s) => s.name === stop.name);
       const isSelected = idx >= 0;
       el.classList.toggle("stop-marker--selected", isSelected);
       el.dataset.order = isSelected ? String(idx + 1) : "";
 
       if (isSelected) {
+        if (map && el.parentNode === null) {
+          el.style.opacity = "0";
+          marker.addTo(map);
+          requestAnimationFrame(() => { el.style.opacity = ""; });
+        }
         el.style.opacity = "";
-        el.style.width = "";
-        el.style.height = "";
       } else if (hasSelection) {
-        // Knock each proximity tier down one notch further
-        const tier = el.dataset.proximity;
-        el.style.opacity = tier === "near" ? "0.55" : tier === "mid" ? "0.35" : "0.2";
+        el.style.opacity = "0.45";
       } else {
-        // No selection — let CSS proximity tiers handle it
         el.style.opacity = "";
-        el.style.width = "";
-        el.style.height = "";
       }
     });
   }, [selectedStops]);
@@ -1141,6 +1165,8 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
                 : null
             }
             onBackToShortest={showingDetour ? handleBackToShortest : null}
+            showAllStops={showAllStops}
+            onToggleShowAll={() => setShowAllStops((prev) => !prev)}
           />
         )}
       </aside>

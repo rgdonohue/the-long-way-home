@@ -61,6 +61,8 @@ interface VerdictPanelProps {
   stopCategory?: PlaceCategory | null;
   onCategoryChange?: ((cat: PlaceCategory | null) => void) | null;
   mode?: TravelMode;
+  showAllStops?: boolean;
+  onToggleShowAll?: (() => void) | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -89,6 +91,8 @@ export function VerdictPanel({
   stopCategory = null,
   onCategoryChange = null,
   mode = "walk",
+  showAllStops = false,
+  onToggleShowAll = null,
 }: VerdictPanelProps) {
   if (error) {
     const isNoRoute = /no route|not found|unreachable|404/i.test(error);
@@ -217,7 +221,18 @@ export function VerdictPanel({
       {/* Stop suggestions list */}
       {!isLoading && (
         <div className="verdict-panel__stop">
-          <p className="verdict-panel__stop-label">Along the way</p>
+          <div className="verdict-panel__stop-header">
+            <p className="verdict-panel__stop-label">Along the way</p>
+            {onToggleShowAll && (
+              <button
+                type="button"
+                className="verdict-panel__show-all-btn"
+                onClick={onToggleShowAll}
+              >
+                {showAllStops ? "Fewer pins" : "More pins"}
+              </button>
+            )}
+          </div>
           {onCategoryChange && (
             <StopCategorySelector selected={stopCategory ?? null} onChange={onCategoryChange} />
           )}
