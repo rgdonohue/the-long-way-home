@@ -4,7 +4,7 @@ import type { TravelMode } from "./api";
 export interface ShareableRouteState {
   origin: [number, number] | null;
   destination: [number, number] | null;
-  category: PlaceCategory | null;
+  category: PlaceCategory[] | null;
   via: [number, number][];
   mode: TravelMode;
 }
@@ -28,11 +28,12 @@ function parseCoord(value: string | null): [number, number] | null {
   return [lon, lat];
 }
 
-function normalizeCategory(value: string | null): PlaceCategory | null {
+function parseCategories(value: string | null): PlaceCategory[] | null {
   if (!value) return null;
-  return CATEGORY_VALUES.includes(value as PlaceCategory)
-    ? (value as PlaceCategory)
-    : null;
+  const cats = value
+    .split(",")
+    .filter((v): v is PlaceCategory => CATEGORY_VALUES.includes(v as PlaceCategory));
+  return cats.length > 0 ? cats : null;
 }
 
 function formatCoord(value: number): string {
@@ -56,7 +57,7 @@ export function parseShareableRouteState(): ShareableRouteState {
   return {
     origin: parseCoord(params.get("origin")),
     destination: parseCoord(params.get("destination")),
-    category: normalizeCategory(params.get("category")),
+    category: parseCategories(params.get("category")),
     via: parseVia(params.get("via")),
     mode: params.get("mode") === "drive" ? "drive" : "walk",
   };
@@ -69,7 +70,9 @@ export function replaceShareableRouteState(state: ShareableRouteState): void {
   if (state.destination) params.set("destination", encodeCoord(state.destination));
 
   const hasResolvedRoute = state.destination !== null;
-  if (hasResolvedRoute && state.category) params.set("category", state.category);
+  if (hasResolvedRoute && state.category && state.category.length < CATEGORY_VALUES.length) {
+    params.set("category", state.category.join(","));
+  }
   if (hasResolvedRoute && state.via.length > 0) {
     params.set("via", state.via.map(encodeCoord).join(";"));
   }

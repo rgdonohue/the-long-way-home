@@ -1,6 +1,6 @@
 import type { StopSuggestion, TravelMode } from "../lib/api";
 import type { PlaceCategory } from "../data/places";
-import { StopCategorySelector } from "./StopCategorySelector";
+import { CATEGORY_COLORS } from "../data/places";
 
 const CATEGORY_LABELS: Record<PlaceCategory, string> = {
   history: "Historic",
@@ -58,8 +58,10 @@ interface VerdictPanelProps {
     within_limit: boolean;
   } | null;
   onBackToShortest?: (() => void) | null;
-  stopCategory?: PlaceCategory | null;
-  onCategoryChange?: ((cat: PlaceCategory | null) => void) | null;
+  activeCategories?: Set<PlaceCategory>;
+  onToggleCategory?: ((cat: PlaceCategory) => void) | null;
+  onToggleAllCategories?: (() => void) | null;
+  categoryCounts?: Record<string, number>;
   mode?: TravelMode;
   showAllStops?: boolean;
   onToggleShowAll?: (() => void) | null;
@@ -70,6 +72,8 @@ function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60);
   return `${mins} min`;
 }
+
+const ALL_CATEGORIES: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
 
 export function VerdictPanel({
   distance_miles,
@@ -88,8 +92,10 @@ export function VerdictPanel({
   showingDetour = false,
   shortestRoute = null,
   onBackToShortest = null,
-  stopCategory = null,
-  onCategoryChange = null,
+  activeCategories,
+  onToggleCategory = null,
+  onToggleAllCategories = null,
+  categoryCounts = {},
   mode = "walk",
   showAllStops = false,
   onToggleShowAll = null,
@@ -218,24 +224,73 @@ export function VerdictPanel({
         </div>
       )}
 
-      {/* Stop suggestions list */}
+      {/* Stop layers panel + suggestions list */}
       {!isLoading && (
         <div className="verdict-panel__stop">
-          <div className="verdict-panel__stop-header">
-            <p className="verdict-panel__stop-label">Along the way</p>
-            {onToggleShowAll && (
-              <button
-                type="button"
-                className="verdict-panel__show-all-btn"
-                onClick={onToggleShowAll}
-              >
-                {showAllStops ? "Fewer pins" : "More pins"}
-              </button>
+          <div className="verdict-panel__layers">
+            <div className="verdict-panel__layers-header">
+              <span className="verdict-panel__layers-title">Stops</span>
+              {onToggleAllCategories && (
+                <button
+                  type="button"
+                  className="verdict-panel__layers-toggle-all"
+                  onClick={onToggleAllCategories}
+                >
+                  {activeCategories?.size === ALL_CATEGORIES.length ? "Hide all" : "Show all"}
+                </button>
+              )}
+            </div>
+            {onToggleCategory && (
+              <>
+                {ALL_CATEGORIES.map((cat) => {
+                  const isOn = activeCategories?.has(cat) ?? true;
+                  const color = CATEGORY_COLORS[cat];
+                  const count = categoryCounts[cat] ?? 0;
+                  return (
+                    <label
+                      key={cat}
+                      className={`verdict-panel__layer-row${isOn ? "" : " verdict-panel__layer-row--off"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="verdict-panel__layer-checkbox"
+                        checked={isOn}
+                        onChange={() => onToggleCategory(cat)}
+                      />
+                      <span
+                        className={`verdict-panel__layer-switch${isOn ? " verdict-panel__layer-switch--on" : ""}`}
+                        style={isOn ? { background: color } : undefined}
+                        aria-hidden="true"
+                      >
+                        <span className="verdict-panel__layer-switch-thumb" />
+                      </span>
+                      <span className="verdict-panel__layer-label">
+                        {CATEGORY_LABELS[cat]}
+                      </span>
+                      <span className="verdict-panel__layer-count">{count}</span>
+                    </label>
+                  );
+                })}
+                <label className="verdict-panel__layer-row">
+                  <input
+                    type="checkbox"
+                    className="verdict-panel__layer-checkbox"
+                    checked={showAllStops}
+                    onChange={() => onToggleShowAll?.()}
+                  />
+                  <span
+                    className={`verdict-panel__layer-switch${showAllStops ? " verdict-panel__layer-switch--on" : ""}`}
+                    style={showAllStops ? { background: "var(--text-secondary)" } : undefined}
+                    aria-hidden="true"
+                  >
+                    <span className="verdict-panel__layer-switch-thumb" />
+                  </span>
+                  <span className="verdict-panel__layer-label">All pins</span>
+                </label>
+              </>
             )}
           </div>
-          {onCategoryChange && (
-            <StopCategorySelector selected={stopCategory ?? null} onChange={onCategoryChange} />
-          )}
+
           {stopLoading ? (
             <p className="verdict-panel__loading">Finding stops…</p>
           ) : nearbyStops.length > 0 ? (
@@ -277,9 +332,7 @@ export function VerdictPanel({
             <p className="verdict-panel__stop-error">{stopError}</p>
           ) : (
             <p className="verdict-panel__stop-none">
-              {stopCategory
-                ? `No ${CATEGORY_LABELS[stopCategory].toLowerCase()} stops nearby`
-                : "No stops within 1 mile of this route"}
+              No stops within range of this route
             </p>
           )}
         </div>

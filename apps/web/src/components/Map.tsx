@@ -1,6 +1,6 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getConfig,
   getRoute,
@@ -127,7 +127,9 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
   const [selectedStops, setSelectedStops] = useState<StopSuggestion[]>([]);
   const [stopLoading, setStopLoading] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
-  const [stopCategory, setStopCategory] = useState<PlaceCategory | null>(null);
+  const [activeCategories, setActiveCategories] = useState<Set<PlaceCategory>>(
+    () => new Set<PlaceCategory>(["history", "art", "scenic", "culture", "civic"])
+  );
   const [detourResult, setDetourResult] = useState<RouteCheckResult | null>(null);
   const [showingDetour, setShowingDetour] = useState(false);
   const [detourLoading, setDetourLoading] = useState(false);
@@ -402,7 +404,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       routeData: RouteResponse,
       originCoord: [number, number],
       destinationCoord: [number, number],
-      category: PlaceCategory | null,
       currentMode: TravelMode,
     ): Promise<StopSuggestion[]> => {
       setDestination(destinationCoord);
@@ -424,7 +425,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       fitRouteBounds(routeData.route.geometry.coordinates);
 
       setClickPhase("route-shown");
-      return fetchAndSetStops(originCoord, destinationCoord, category, effectiveMilesFor(currentMode), currentMode);
+      return fetchAndSetStops(originCoord, destinationCoord, null, effectiveMilesFor(currentMode), currentMode);
     },
     [
       fetchAndSetStops,
@@ -488,7 +489,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     setSelectedStops([]);
     setStopLoading(false);
     setStopError(null);
-    setStopCategory(null);
+    setActiveCategories(new Set(["history", "art", "scenic", "culture", "civic"]));
     setDetourResult(null);
     setShowingDetour(false);
     setDetourLoading(false);
@@ -637,7 +638,9 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     restoreStartedRef.current = true;
     const sharedState = initialShareStateRef.current;
 
-    setStopCategory(sharedState.category);
+    if (sharedState.category) {
+      setActiveCategories(new Set(sharedState.category));
+    }
 
     if (!sharedState.origin) {
       setRestoreReady(true);
@@ -674,7 +677,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
           shortest,
           originCoord,
           destinationCoord,
-          sharedState.category,
           mode,
         );
 
@@ -751,14 +753,16 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
   useEffect(() => {
     if (!restoreReady) return;
 
+    const allCats: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
+    const catArray = activeCategories.size === allCats.length ? null : [...activeCategories];
     replaceShareableRouteState({
       origin,
       destination,
-      category: stopCategory,
+      category: catArray,
       via: selectedStops.map((s) => s.coordinates),
       mode,
     });
-  }, [restoreReady, origin, destination, stopCategory, selectedStops, mode]);
+  }, [restoreReady, origin, destination, activeCategories, selectedStops, mode]);
 
   useEffect(() => {
     removeRouteAndDestination();
@@ -833,13 +837,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
 
         checkRoute(lng, lat, effectiveMilesFor(mode), origin[0], origin[1], mode)
           .then((data) =>
-            applyShortestRouteToMap(
-              data,
-              origin,
-              [lng, lat],
-              stopCategory,
-              mode,
-            ),
+            applyShortestRouteToMap(data, origin, [lng, lat], mode),
           )
           .catch(() => {
             // Stay in set-destination on error; user can retry or reset.
@@ -866,7 +864,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     origin,
     placeOriginMarker,
     removeRouteAndDestination,
-    stopCategory,
   ]);
 
   const handleSelectStop = useCallback(
@@ -927,13 +924,17 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     onStopClickRef.current = handleSelectStop;
   }, [handleSelectStop]);
 
-  // Add/remove markers based on default-visible rank and showAllStops toggle
+  // Add/remove markers based on default-visible rank, showAllStops toggle, and active categories
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    stopMarkersRef.current.forEach(({ el, marker }) => {
-      const shouldShow = el.dataset.defaultVisible === "true" || showAllStops;
+    stopMarkersRef.current.forEach(({ stop, el, marker }) => {
+      const inCategory = activeCategories.has(stop.category as PlaceCategory);
+      const inDefaultSet = el.dataset.defaultVisible === "true";
+      const shouldShow = inCategory && (inDefaultSet || showAllStops);
       const isOnMap = el.parentNode !== null;
+      const isSelected = el.classList.contains("stop-marker--selected");
+      if (isSelected) return;
       if (shouldShow && !isOnMap) {
         el.style.opacity = "0";
         marker.addTo(map);
@@ -942,7 +943,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
         marker.remove();
       }
     });
-  }, [showAllStops, nearbyStops]);
+  }, [showAllStops, nearbyStops, activeCategories]);
 
   // Sync selected-stop affordance, order badges, and dim unselected markers
   useEffect(() => {
@@ -984,15 +985,21 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     removeAltRoute();
   }, [removeAltRoute, renderRouteLine, result]);
 
-  const handleCategoryChange = useCallback(
-    (cat: PlaceCategory | null) => {
-      setStopCategory(cat);
-      // Selections and route persist across category changes
-      if (!result || !origin || !destination) return;
-      void fetchAndSetStops(origin, destination, cat, effectiveMilesFor(mode), mode, selectedStops);
-    },
-    [destination, fetchAndSetStops, mode, origin, result, selectedStops],
-  );
+  const handleToggleCategory = useCallback((cat: PlaceCategory) => {
+    setActiveCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }, []);
+
+  const handleToggleAllCategories = useCallback(() => {
+    setActiveCategories((prev) => {
+      const allCats: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
+      return prev.size === allCats.length ? new Set<PlaceCategory>() : new Set(allCats);
+    });
+  }, []);
 
   const handleModeChange = useCallback(
     (newMode: TravelMode) => {
@@ -1022,7 +1029,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
           );
           fitRouteBounds(data.route.geometry.coordinates);
           setClickPhase("route-shown");
-          await fetchAndSetStops(origin, destination, stopCategory, effectiveMilesFor(newMode), newMode, stopsToRestore);
+          await fetchAndSetStops(origin, destination, null, effectiveMilesFor(newMode), newMode, stopsToRestore);
 
           if (stopsToRestore.length === 0) {
             setSelectedStops([]);
@@ -1069,7 +1076,6 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       origin,
       destination,
       selectedStops,
-      stopCategory,
       clearStopMarkers,
       removeAltRoute,
       checkRoute,
@@ -1088,6 +1094,18 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
   if (!config) {
     return <div className="map-loading">Loading map…</div>;
   }
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const stop of nearbyStops) {
+      counts[stop.category] = (counts[stop.category] || 0) + 1;
+    }
+    return counts;
+  }, [nearbyStops]);
+
+  const filteredStops = nearbyStops.filter((s) =>
+    activeCategories.has(s.category as PlaceCategory)
+  );
 
   const activeResult = showingDetour && detourResult ? detourResult : result;
   const showVerdictPanel = isLoading || result !== null || error !== null;
@@ -1154,13 +1172,15 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
             isLoading={isLoading}
             error={error}
             onReset={handleReset}
-            nearbyStops={nearbyStops}
+            nearbyStops={filteredStops}
             selectedStops={selectedStops}
             stopLoading={stopLoading}
             stopError={stopError}
             onSelectStop={handleSelectStop}
-            stopCategory={stopCategory}
-            onCategoryChange={handleCategoryChange}
+            activeCategories={activeCategories}
+            onToggleCategory={handleToggleCategory}
+            onToggleAllCategories={handleToggleAllCategories}
+            categoryCounts={categoryCounts}
             detourLoading={detourLoading}
             showingDetour={showingDetour}
             mode={mode}

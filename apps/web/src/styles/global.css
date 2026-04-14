@@ -388,18 +388,19 @@ h1, h2, h3 {
 .verdict-panel__reset {
   margin-left: auto;
   background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.75rem;
+  border: 1px solid rgba(44, 24, 16, 0.2);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.6875rem;
   font-family: inherit;
   color: var(--text-secondary);
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  transition: border-color 0.15s, color 0.15s;
 }
 
 .verdict-panel__reset:hover {
   color: var(--dark-brown);
+  border-color: rgba(44, 24, 16, 0.4);
 }
 
 .verdict-panel__metric {
@@ -446,38 +447,113 @@ h1, h2, h3 {
   border-top: 1px solid rgba(44, 24, 16, 0.07);
 }
 
-.verdict-panel__stop-header {
+/* Build sidebar — layer toggles */
+.verdict-panel__layers {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
+  flex-direction: column;
+  border: 1px solid rgba(44, 24, 16, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
 }
 
-.verdict-panel__stop-label {
-  margin: 0;
+.verdict-panel__layers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.625rem;
+  background: rgba(44, 24, 16, 0.03);
+  border-bottom: 1px solid rgba(44, 24, 16, 0.08);
+}
+
+.verdict-panel__layers-title {
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sage);
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
 }
 
-.verdict-panel__show-all-btn {
+.verdict-panel__layers-toggle-all {
   background: none;
   border: none;
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  cursor: pointer;
   padding: 0;
-  text-decoration: underline;
-  text-decoration-color: rgba(44, 24, 16, 0.25);
-  text-underline-offset: 2px;
+  font-size: 0.6875rem;
+  color: var(--terracotta);
+  cursor: pointer;
+  font-family: inherit;
 }
 
-.verdict-panel__show-all-btn:hover {
+.verdict-panel__layers-toggle-all:hover {
+  text-decoration: underline;
+}
+
+.verdict-panel__layer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.625rem;
+  cursor: pointer;
+  transition: opacity 0.18s, background 0.12s;
+  border-bottom: 1px solid rgba(44, 24, 16, 0.06);
+}
+
+.verdict-panel__layer-row:last-child {
+  border-bottom: none;
+}
+
+.verdict-panel__layer-row:hover {
+  background: rgba(44, 24, 16, 0.03);
+}
+
+.verdict-panel__layer-row--off {
+  opacity: 0.45;
+}
+
+.verdict-panel__layer-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.verdict-panel__layer-switch {
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(44, 24, 16, 0.18);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.18s;
+}
+
+.verdict-panel__layer-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: left 0.18s;
+}
+
+.verdict-panel__layer-switch--on .verdict-panel__layer-switch-thumb {
+  left: 17px;
+}
+
+.verdict-panel__layer-label {
+  flex: 1;
+  font-size: 0.8125rem;
   color: var(--dark-brown);
-  text-decoration-color: var(--dark-brown);
+}
+
+.verdict-panel__layer-count {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .verdict-panel__stop-name {
@@ -581,43 +657,6 @@ h1, h2, h3 {
 }
 
 /* Stop category selector */
-.stop-category-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.625rem;
-}
-
-.stop-category-selector__btn {
-  padding: 0.2rem 0.5rem;
-  font-size: 0.625rem;
-  font-family: "DM Sans", system-ui, sans-serif;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-  background: rgba(44, 24, 16, 0.06);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.stop-category-selector__btn:hover {
-  background: rgba(107, 127, 94, 0.15);
-  color: var(--sage);
-}
-
-.stop-category-selector__btn--active {
-  background: var(--sage);
-  color: var(--warm-cream);
-  font-weight: 600;
-}
-
-.stop-category-selector__btn--active:hover {
-  background: var(--sage);
-  color: var(--warm-cream);
-}
 
 /* Stop marker on the map — colored by category */
 .stop-marker {
@@ -1021,9 +1060,10 @@ h1, h2, h3 {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.625rem;
   background: rgba(107, 71, 168, 0.06);
   border: none;
+  border-left: 3px solid var(--stop-selected);
   border-radius: 3px;
   cursor: pointer;
   text-align: left;
