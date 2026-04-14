@@ -290,22 +290,32 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       });
       stopPopupRef.current = popup;
 
+      // Rank stops by distance to route; top N are default-visible
+      const routeCoords = resultRef.current?.route?.geometry?.coordinates;
+      const DEFAULT_VISIBLE = 10;
+      const defaultVisibleNames = new Set(
+        stops
+          .map((stop) => ({
+            stop,
+            dist: routeCoords ? minRouteDistanceMiles(stop.coordinates, routeCoords) : 0,
+          }))
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, DEFAULT_VISIBLE)
+          .map((r) => r.stop.name)
+      );
+
       stops.forEach((stop) => {
         const el = document.createElement("div");
         el.className = "stop-marker";
         const color = CATEGORY_COLORS[stop.category as PlaceCategory];
         if (color) el.style.setProperty("--stop-marker-color", color);
 
-        const routeCoords = resultRef.current?.route?.geometry?.coordinates;
-        if (routeCoords) {
-          const dist = minRouteDistanceMiles(stop.coordinates, routeCoords);
-          el.dataset.proximity = dist <= 0.1 ? "near" : dist <= 0.4 ? "mid" : "far";
-        }
+        el.dataset.defaultVisible = defaultVisibleNames.has(stop.name) ? "true" : "false";
 
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat(stop.coordinates);
 
-        if (el.dataset.proximity === "near" || showAllStopsRef.current) {
+        if (el.dataset.defaultVisible === "true" || showAllStopsRef.current) {
           marker.addTo(map);
         }
 
@@ -917,13 +927,12 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     onStopClickRef.current = handleSelectStop;
   }, [handleSelectStop]);
 
-  // Add/remove markers based on proximity tier and showAllStops toggle
+  // Add/remove markers based on default-visible rank and showAllStops toggle
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     stopMarkersRef.current.forEach(({ el, marker }) => {
-      const tier = el.dataset.proximity;
-      const shouldShow = tier === "near" || showAllStops;
+      const shouldShow = el.dataset.defaultVisible === "true" || showAllStops;
       const isOnMap = el.parentNode !== null;
       if (shouldShow && !isOnMap) {
         el.style.opacity = "0";
