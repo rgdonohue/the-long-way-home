@@ -436,9 +436,9 @@ export function TourStoryMap() {
         padding: getOverviewPadding(),
         maxZoom: 14.5,
       });
-      if (!camera) return;
+      if (!camera || !camera.center) return;
       map.easeTo({
-        center: [camera.center.lng, camera.center.lat],
+        center: camera.center as [number, number],
         zoom: camera.zoom,
         pitch: 0,
         bearing: 0,
@@ -586,6 +586,9 @@ export function TourStoryMap() {
                   {tour.mode === "walk" ? "Walking" : "Driving"}
                 </span>
               </span>
+            </div>
+            <div className="story-map__scroll-hint">
+              Scroll to explore
             </div>
           </div>
         </section>
