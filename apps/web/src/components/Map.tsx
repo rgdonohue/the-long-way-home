@@ -518,6 +518,8 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
             type: "raster",
             tiles: [TONER_LITE_URL],
             tileSize: 256,
+            attribution:
+              '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &middot; Routing by <a href="https://openrouteservice.org/">OpenRouteService</a>',
           },
         },
         layers: [

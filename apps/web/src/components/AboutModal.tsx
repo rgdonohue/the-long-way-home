@@ -79,6 +79,30 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
             </p>
           </section>
 
+          <section className="about-modal__section">
+            <h3>Data sources</h3>
+            <p>
+              Basemap tiles by{" "}
+              <a href="https://carto.com/" target="_blank" rel="noopener noreferrer">
+                CARTO
+              </a>{" "}
+              and{" "}
+              <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">
+                OpenFreeMap
+              </a>
+              , drawing on{" "}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+                OpenStreetMap
+              </a>{" "}
+              contributors. Routing and travel-time estimates by{" "}
+              <a href="https://openrouteservice.org/" target="_blank" rel="noopener noreferrer">
+                OpenRouteService
+              </a>
+              . Place records draw on OpenStreetMap, Wikidata, and public
+              registers, then are reviewed and described as outlined above.
+            </p>
+          </section>
+
           <footer className="about-modal__footer">
             Created, designed, and developed by Richard Donohue, PhD
             <br />

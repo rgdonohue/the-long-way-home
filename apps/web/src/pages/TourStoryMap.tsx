@@ -7,8 +7,11 @@ import type { TourDefinition, PlaceCategory } from "../types/tour";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const TONER_LITE_URL =
-  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+const BASEMAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+const STOP_PITCH = 50;
+const STOP_BEARING = -20;
+const BUILDING_3D_LAYER = "tour-building-3d";
+
 const ROUTE_COLOR = "#C45B28";
 const ROUTE_SOURCE = "tour-route";
 const ROUTE_LAYER = "tour-route-line";
@@ -227,27 +230,7 @@ export function TourStoryMap() {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          "stamen-toner-lite": {
-            type: "raster",
-            tiles: [TONER_LITE_URL],
-            tileSize: 256,
-            attribution:
-              '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          },
-        },
-        layers: [
-          {
-            id: "stamen-toner-lite-layer",
-            type: "raster",
-            source: "stamen-toner-lite",
-            minzoom: 0,
-            maxzoom: 22,
-          },
-        ],
-      },
+      style: BASEMAP_STYLE_URL,
       bounds: [sw, ne],
       fitBoundsOptions: { padding: getOverviewPadding(), pitch: 0, bearing: 0 },
     });
@@ -255,6 +238,38 @@ export function TourStoryMap() {
     map.keyboard.disable();
 
     map.on("load", () => {
+      // ── 3D building extrusion ─────────────────────────────────────────────
+      const style = map.getStyle();
+      const buildingLayer = style.layers?.find(
+        (l): l is maplibregl.LayerSpecification & { source: string; "source-layer"?: string } =>
+          "source-layer" in l && (l as { "source-layer"?: string })["source-layer"] === "building"
+      );
+      if (buildingLayer && buildingLayer.source) {
+        map.addLayer({
+          id: BUILDING_3D_LAYER,
+          type: "fill-extrusion",
+          source: buildingLayer.source,
+          "source-layer": "building",
+          minzoom: 14,
+          paint: {
+            "fill-extrusion-color": "#d6cdbb",
+            "fill-extrusion-height": [
+              "coalesce",
+              ["get", "render_height"],
+              ["get", "height"],
+              3,
+            ],
+            "fill-extrusion-base": [
+              "coalesce",
+              ["get", "render_min_height"],
+              ["get", "min_height"],
+              0,
+            ],
+            "fill-extrusion-opacity": 0.85,
+          },
+        });
+      }
+
       // ── Ghost route (full path, dimmed as "path ahead") ───────────────────
       map.addSource(ROUTE_SOURCE, {
         type: "geojson",
@@ -451,8 +466,8 @@ export function TourStoryMap() {
       map.easeTo({
         center: stop.coordinates,
         zoom: 16.5,
-        pitch: 0,
-        bearing: 0,
+        pitch: STOP_PITCH,
+        bearing: STOP_BEARING,
         offset: window.innerWidth <= 768 ? [0, -120] : [180, 0],
         duration,
         easing: EASE_OUT_QUAD,
