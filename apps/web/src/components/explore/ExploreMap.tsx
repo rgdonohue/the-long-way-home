@@ -32,6 +32,7 @@ export interface SelectedPoi {
   subcategory: string | null;
   confidence: string | null;
   basis: string | null;
+  address: string | null;
 }
 
 interface ExploreMapProps {
@@ -162,6 +163,7 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
                   subcategory: string | null;
                   confidence: string | null;
                   basis: string | null;
+                  address: string | null;
                 };
                 onPoiSelect({
                   name: props.name,
@@ -173,6 +175,7 @@ export function ExploreMap({ activeCategories, onPoiSelect }: ExploreMapProps) {
                   subcategory: props.subcategory,
                   confidence: props.confidence,
                   basis: props.basis,
+                  address: props.address ?? null,
                 });
               };
 

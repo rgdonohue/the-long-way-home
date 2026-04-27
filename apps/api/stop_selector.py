@@ -1,5 +1,6 @@
 """Stop selection — ORS candidate ranking and static fallback."""
 import csv
+import json
 import logging
 import math
 from pathlib import Path
@@ -14,6 +15,31 @@ _EARTH_RADIUS_MILES = 3958.8
 _VALID_CATEGORIES: frozenset = frozenset({"history", "art", "scenic", "culture", "civic"})
 
 _CSV_PATH = Path(__file__).parent / "data" / "query_capable_pois_frontend_seed.csv"
+_CTX_CSV_PATH = Path(__file__).parent / "data" / "query_capable_pois_frontend_seed_context_v1.csv"
+
+
+def _load_addresses() -> dict[str, str | None]:
+    addresses: dict[str, str | None] = {}
+    try:
+        with open(_CTX_CSV_PATH, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                poi_id = (row.get("poi_id") or "").strip()
+                if not poi_id:
+                    continue
+                try:
+                    tags = json.loads(row.get("raw_tags_json") or "{}")
+                except Exception:
+                    tags = {}
+                housenumber = (tags.get("addr:housenumber") or "").strip()
+                street = (tags.get("addr:street") or "").strip()
+                if street:
+                    addresses[poi_id] = f"{housenumber} {street}".strip() if housenumber else street
+    except FileNotFoundError:
+        logger.warning("Context CSV not found: %s", _CTX_CSV_PATH)
+    return addresses
+
+
+_ADDRESSES: dict[str, str | None] = _load_addresses()
 
 
 def _load_places() -> list[dict]:
@@ -64,6 +90,7 @@ def _load_places() -> list[dict]:
                 "subcategory": (row.get("description_subcategory_v1") or "").strip() or None,
                 "confidence": (row.get("description_confidence_v1") or "").strip() or None,
                 "basis": (row.get("description_basis_v1") or "").strip() or None,
+                "address": _ADDRESSES.get(poi_id) if poi_id else None,
             })
     logger.info("Loaded %d places from seed CSV", len(places))
     return places
@@ -98,6 +125,7 @@ def get_all_places_geojson(category: str | None = None) -> dict:
                     "subcategory": p["subcategory"],
                     "confidence": p["confidence"],
                     "basis": p["basis"],
+                    "address": p.get("address"),
                 },
             }
             for p in pois

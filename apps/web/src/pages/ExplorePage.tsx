@@ -191,6 +191,9 @@ function PoiDetail({ poi, fadingOut }: { poi: SelectedPoi; fadingOut: boolean })
   return (
     <div className={`explore-poi-detail${fadingOut ? " explore-poi-detail--fade-out" : ""}`}>
       <strong className="explore-poi-detail__name">{poi.name}</strong>
+      {poi.address && (
+        <div className="explore-poi-detail__address">{poi.address}</div>
+      )}
       <div className="explore-poi-detail__meta">
         <span
           className="explore-poi-detail__badge"

@@ -86,6 +86,7 @@ export interface PoiFeature {
     subcategory: string | null;
     confidence: string | null;
     basis: string | null;
+    address: string | null;
   };
 }
 
