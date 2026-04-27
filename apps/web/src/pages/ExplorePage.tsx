@@ -24,7 +24,7 @@ export function ExplorePage() {
   const [activeCategories, setActiveCategories] = useState<Set<PlaceCategory>>(defaultActiveCategories);
   const [selectedPoi, setSelectedPoi] = useState<SelectedPoi | null>(null);
   const [pois, setPois] = useState<PoisResponse | null>(null);
-  const flyToRef = useRef<(coords: [number, number]) => void>(() => {});
+  const focusPoiRef = useRef<(feature: PoiFeature) => void>(() => {});
 
   useEffect(() => {
     getPois().then(setPois).catch((err) => console.warn("Failed to load POIs:", err));
@@ -64,7 +64,7 @@ export function ExplorePage() {
 
   const handleSearchSelect = useCallback((poi: PoiFeature) => {
     setSelectedPoi(featureToSelectedPoi(poi));
-    flyToRef.current(poi.geometry.coordinates as [number, number]);
+    focusPoiRef.current(poi);
   }, []);
 
   const handleToggle = useCallback((cat: PlaceCategory) => {
@@ -94,7 +94,7 @@ export function ExplorePage() {
             activeCategories={activeCategories}
             onPoiSelect={setSelectedPoi}
             pois={pois}
-            flyToRef={flyToRef}
+            focusPoiRef={focusPoiRef}
           />
           {pois && (
             <SearchBar

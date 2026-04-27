@@ -768,6 +768,14 @@ h1, h2, h3 {
 }
 
 /* Explore map hover tooltip */
+.explore-hover-popup {
+  transition: opacity 300ms ease-out;
+}
+
+.explore-hover-popup.explore-hover-popup--fade-out {
+  opacity: 0;
+}
+
 .explore-hover-popup .maplibregl-popup-content {
   padding: 5px 9px;
   font-family: "DM Sans", system-ui, sans-serif;

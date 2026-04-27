@@ -23,6 +23,12 @@ const POI_CATEGORY_COLOR_EXPR = [
   "#999999",
 ] as maplibregl.ExpressionSpecification;
 
+function buildPopupHtml(name: string, description: string | null): string {
+  return description
+    ? `<strong>${name}</strong><br><span style="font-size:0.85em;opacity:0.85">${description}</span>`
+    : name;
+}
+
 export interface SelectedPoi {
   name: string;
   category: string;
@@ -56,18 +62,18 @@ interface ExploreMapProps {
   activeCategories: Set<PlaceCategory>;
   onPoiSelect: (poi: SelectedPoi | null) => void;
   pois: PoisResponse | null;
-  flyToRef?: { current: (coords: [number, number]) => void };
+  focusPoiRef?: { current: (feature: PoiFeature) => void };
 }
 
 function buildCategoryFilter(
   active: Set<PlaceCategory>,
 ): maplibregl.FilterSpecification | null {
-  if (active.size === ALL_CATEGORIES.length) return null; // all on — no filter needed
-  if (active.size === 0) return ["==", "1", "0"]; // nothing visible
+  if (active.size === ALL_CATEGORIES.length) return null;
+  if (active.size === 0) return ["==", "1", "0"];
   return ["in", ["get", "category"], ["literal", Array.from(active)]];
 }
 
-export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: ExploreMapProps) {
+export function ExploreMap({ activeCategories, onPoiSelect, pois, focusPoiRef }: ExploreMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const activeCategoriesRef = useRef<Set<PlaceCategory>>(activeCategories);
@@ -75,6 +81,22 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
   const onPoiSelectRef = useRef(onPoiSelect);
   onPoiSelectRef.current = onPoiSelect;
   const [mapLoaded, setMapLoaded] = useState(false);
+
+  const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
+  const fadeStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFadeTimers = () => {
+    if (fadeStartTimerRef.current) {
+      clearTimeout(fadeStartTimerRef.current);
+      fadeStartTimerRef.current = null;
+    }
+    if (removeTimerRef.current) {
+      clearTimeout(removeTimerRef.current);
+      removeTimerRef.current = null;
+    }
+    hoverPopupRef.current?.getElement()?.classList.remove("explore-hover-popup--fade-out");
+  };
 
   // Init map once
   useEffect(() => {
@@ -109,9 +131,24 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
         map.touchZoomRotate.disableRotation();
         mapRef.current = map;
 
-        if (flyToRef) {
-          flyToRef.current = (coords: [number, number]) => {
+        if (focusPoiRef) {
+          focusPoiRef.current = (feature: PoiFeature) => {
+            const coords = feature.geometry.coordinates as [number, number];
             map.flyTo({ center: coords, zoom: 16, duration: 700 });
+            const popup = hoverPopupRef.current;
+            if (!popup) return;
+            clearFadeTimers();
+            popup
+              .setLngLat(coords)
+              .setHTML(buildPopupHtml(feature.properties.name, feature.properties.description_map))
+              .addTo(map);
+            fadeStartTimerRef.current = setTimeout(() => {
+              popup.getElement()?.classList.add("explore-hover-popup--fade-out");
+              removeTimerRef.current = setTimeout(() => {
+                popup.remove();
+                popup.getElement()?.classList.remove("explore-hover-popup--fade-out");
+              }, 320);
+            }, 4000);
           };
         }
 
@@ -129,7 +166,7 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
   useEffect(() => {
     if (!mapLoaded || !pois || !mapRef.current) return;
     const map = mapRef.current;
-    if (map.getSource(POI_SOURCE_ID)) return; // already added; no-op on re-render
+    if (map.getSource(POI_SOURCE_ID)) return;
 
     map.addSource(POI_SOURCE_ID, { type: "geojson", data: pois });
 
@@ -158,7 +195,7 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
     const initialFilter = buildCategoryFilter(activeCategoriesRef.current);
     if (initialFilter) map.setFilter(POI_CIRCLE_LAYER_ID, initialFilter);
 
-    const hoverPopup = new maplibregl.Popup({
+    hoverPopupRef.current = new maplibregl.Popup({
       closeButton: false,
       closeOnClick: false,
       offset: 10,
@@ -168,18 +205,19 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
 
     const handleMouseEnter = (e: maplibregl.MapLayerMouseEvent) => {
       if (!e.features?.length) return;
+      const popup = hoverPopupRef.current;
+      if (!popup) return;
+      clearFadeTimers();
       map.getCanvas().style.cursor = "pointer";
       const coords = (e.features[0].geometry as GeoJSON.Point).coordinates as [number, number];
       const props = e.features[0].properties as { name: string; description_map: string | null };
-      const html = props.description_map
-        ? `<strong>${props.name}</strong><br><span style="font-size:0.85em;opacity:0.85">${props.description_map}</span>`
-        : props.name;
-      hoverPopup.setLngLat(coords).setHTML(html).addTo(map);
+      popup.setLngLat(coords).setHTML(buildPopupHtml(props.name, props.description_map)).addTo(map);
     };
 
     const handleMouseLeave = () => {
+      clearFadeTimers();
       map.getCanvas().style.cursor = "";
-      hoverPopup.remove();
+      hoverPopupRef.current?.remove();
     };
 
     const handlePoiClick = (e: maplibregl.MapLayerMouseEvent) => {
@@ -193,7 +231,11 @@ export function ExploreMap({ activeCategories, onPoiSelect, pois, flyToRef }: Ex
 
     map.on("click", (e) => {
       const hits = map.queryRenderedFeatures(e.point, { layers: [POI_CIRCLE_LAYER_ID] });
-      if (!hits.length) onPoiSelectRef.current(null);
+      if (!hits.length) {
+        onPoiSelectRef.current(null);
+        clearFadeTimers();
+        hoverPopupRef.current?.remove();
+      }
     });
   }, [mapLoaded, pois]); // eslint-disable-line react-hooks/exhaustive-deps
 
