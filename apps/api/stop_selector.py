@@ -240,6 +240,7 @@ def select_from_static(
                 "confidence": place.get("confidence"),
                 "basis": place.get("basis"),
                 "wikipedia_title": place.get("wikipedia_title"),
+                "address": place.get("address"),
             })
 
     results.sort(key=lambda x: x["route_position"])

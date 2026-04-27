@@ -321,6 +321,9 @@ export function VerdictPanel({
                             {stop.subcategory.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                           </span>
                         )}
+                        {stop.address && (
+                          <span className="stop-list__item-address">{stop.address}</span>
+                        )}
                         {(() => {
                           const desc =
                             stop.confidence !== "low"

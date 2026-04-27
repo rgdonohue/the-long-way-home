@@ -66,6 +66,7 @@ export interface StopSuggestion {
   confidence?: string | null;
   basis?: string | null;
   wikipedia_title?: string | null;
+  address?: string | null;
 }
 
 export interface SuggestStopResponse {
