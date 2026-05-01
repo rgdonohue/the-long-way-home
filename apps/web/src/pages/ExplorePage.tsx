@@ -8,12 +8,12 @@ import { getPois, type PoiFeature, type PoisResponse } from "../lib/api";
 
 const ALL_CATEGORIES: PlaceCategory[] = ["history", "art", "scenic", "culture", "civic"];
 
-const CATEGORY_META: Record<PlaceCategory, { label: string; color: string; count: number }> = {
-  history: { label: "History",   color: CATEGORY_COLORS.history, count: 142 },
-  art:     { label: "Art",       color: CATEGORY_COLORS.art,     count: 117 },
-  scenic:  { label: "Scenic",    color: CATEGORY_COLORS.scenic,  count: 112 },
-  culture: { label: "Culture",   color: CATEGORY_COLORS.culture, count: 79  },
-  civic:   { label: "Landmarks", color: CATEGORY_COLORS.civic,   count: 65  },
+const CATEGORY_META: Record<PlaceCategory, { label: string; color: string }> = {
+  history: { label: "History",   color: CATEGORY_COLORS.history },
+  art:     { label: "Art",       color: CATEGORY_COLORS.art     },
+  scenic:  { label: "Scenic",    color: CATEGORY_COLORS.scenic  },
+  culture: { label: "Culture",   color: CATEGORY_COLORS.culture },
+  civic:   { label: "Landmarks", color: CATEGORY_COLORS.civic   },
 };
 
 function defaultActiveCategories(): Set<PlaceCategory> {
@@ -108,13 +108,14 @@ export function ExplorePage() {
               activeCategories={activeCategories}
               onToggle={handleToggle}
               onToggleAll={handleToggleAll}
+              pois={pois}
             />
             {!displayedPoi && (
               <div className="explore-intro">
                 <p>
                   Santa Fe's 400-year story is written into its streets, walls,
-                  and landscape. This map plots 515 places across five
-                  categories — from sites on the National Register to scenic
+                  and landscape. This map plots {pois ? pois.features.length : "hundreds of"} places
+                  across five categories — from sites on the National Register to scenic
                   overlooks and public art.
                 </p>
                 <p className="explore-intro__cta">Click any dot to learn more.</p>
@@ -139,18 +140,28 @@ function ExplorePanel({
   activeCategories,
   onToggle,
   onToggleAll,
+  pois,
 }: {
   activeCategories: Set<PlaceCategory>;
   onToggle: (cat: PlaceCategory) => void;
   onToggleAll: () => void;
+  pois: PoisResponse | null;
 }) {
   const allOn = activeCategories.size === ALL_CATEGORIES.length;
+  const totalCount = pois?.features.length ?? null;
+
+  const countByCategory = pois
+    ? ALL_CATEGORIES.reduce<Record<PlaceCategory, number>>((acc, cat) => {
+        acc[cat] = pois.features.filter((f) => f.properties.category === cat).length;
+        return acc;
+      }, {} as Record<PlaceCategory, number>)
+    : null;
 
   return (
     <div className="explore-panel">
       <div className="explore-panel__header">
         <h2>Explore Santa Fe</h2>
-        <p>515 places — click any dot to learn more.</p>
+        {totalCount !== null && <p>{totalCount} places — click any dot to learn more.</p>}
       </div>
       <div className="explore-legend">
         <div className="explore-legend__header">
@@ -164,7 +175,8 @@ function ExplorePanel({
           </button>
         </div>
         {ALL_CATEGORIES.map((cat) => {
-          const { label, color, count } = CATEGORY_META[cat];
+          const { label, color } = CATEGORY_META[cat];
+          const count = countByCategory?.[cat];
           const isOn = activeCategories.has(cat);
           return (
             <label key={cat} className={`explore-legend__row${isOn ? "" : " explore-legend__row--off"}`}>
@@ -182,7 +194,7 @@ function ExplorePanel({
                 <span className="explore-legend__switch-thumb" />
               </span>
               <span className="explore-legend__label">{label}</span>
-              <span className="explore-legend__count">{count}</span>
+              {count !== undefined && <span className="explore-legend__count">{count}</span>}
             </label>
           );
         })}
