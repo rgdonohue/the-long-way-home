@@ -98,8 +98,7 @@ async def get_isodistance(
         )
 
         if resp.status_code == 401:
-            logger.warning("ORS API key invalid — returning mock isodistance GeoJSON")
-            return _mock_isodistance_geojson(lon, lat, distances_meters)
+            raise ValueError("ORS API key invalid or expired")
         if resp.status_code == 429:
             raise ValueError("ORS rate limited")
         resp.raise_for_status()
@@ -165,11 +164,7 @@ async def get_shortest_route(
         )
 
         if resp.status_code == 401:
-            logger.warning("ORS API key invalid — returning mock route response")
-            return _mock_route_response(
-                origin_lon, origin_lat, dest_lon, dest_lat, limit_miles,
-                via_coords,
-            )
+            raise ValueError("ORS API key invalid or expired")
         if resp.status_code == 429:
             raise ValueError("ORS rate limited")
         if resp.status_code == 404:

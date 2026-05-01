@@ -17,14 +17,33 @@ _ttl_seconds: float = settings.CACHE_TTL_HOURS * 3600
 
 
 def get(key: str) -> Any | None:
-    """Return cached value if present and not expired."""
-    if key not in _store:
-        return None
-    val, expires_at = _store[key]
-    if time.time() > expires_at:
-        del _store[key]
-        return None
-    return val
+    """Return cached value if present and not expired.
+    For area_* keys, falls back to disk when not in memory (survives restarts).
+    """
+    if key in _store:
+        val, expires_at = _store[key]
+        if time.time() > expires_at:
+            del _store[key]
+        else:
+            return val
+
+    if key.startswith("area_"):
+        filepath = CACHE_DIR / f"{key}.geojson"
+        try:
+            mtime = filepath.stat().st_mtime
+        except OSError:
+            return None
+        if time.time() - mtime > _ttl_seconds:
+            return None
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+            _store[key] = (data, mtime + _ttl_seconds)
+            return data
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Failed to read cache file %s: %s", filepath, e)
+
+    return None
 
 
 def set(key: str, value: Any, ttl_seconds: float | None = None) -> None:

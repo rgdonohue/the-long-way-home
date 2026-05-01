@@ -109,6 +109,7 @@ async function fetchWithTimeout(
   url: string,
   timeoutMs: number = FETCH_TIMEOUT_MS,
   externalSignal?: AbortSignal,
+  init?: Omit<RequestInit, "signal">,
 ): Promise<Response> {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -131,7 +132,7 @@ async function fetchWithTimeout(
   };
 
   try {
-    const res = await fetch(url, { signal: ctrl.signal });
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
     cleanup();
     return res;
   } catch (e) {
@@ -181,28 +182,38 @@ export async function suggestStop(
   miles?: number,
   mode?: TravelMode,
   signal?: AbortSignal,
+  routeCoordinates?: number[][],
 ): Promise<SuggestStopResponse> {
-  const params = new URLSearchParams({
-    origin: `${originLon},${originLat}`,
-    destination: `${destLon},${destLat}`,
-  });
-  if (category !== null) params.set("category", category);
-  if (miles !== undefined) params.set("miles", String(miles));
-  if (mode && mode !== "drive") params.set("mode", mode);
-  const res = await fetchWithTimeout(
-    `${API_BASE}/suggest-stop?${params}`,
-    ROUTE_TIMEOUT_MS,
-    signal,
-  );
+  let res: Response;
+  if (routeCoordinates && routeCoordinates.length >= 2) {
+    const body: Record<string, unknown> = {
+      origin: `${originLon},${originLat}`,
+      destination: `${destLon},${destLat}`,
+      route_coordinates: routeCoordinates,
+    };
+    if (category !== null) body.category = category;
+    if (miles !== undefined) body.miles = miles;
+    if (mode) body.mode = mode;
+    res = await fetchWithTimeout(`${API_BASE}/suggest-stop`, ROUTE_TIMEOUT_MS, signal, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } else {
+    const params = new URLSearchParams({
+      origin: `${originLon},${originLat}`,
+      destination: `${destLon},${destLat}`,
+    });
+    if (category !== null) params.set("category", category);
+    if (miles !== undefined) params.set("miles", String(miles));
+    if (mode && mode !== "drive") params.set("mode", mode);
+    res = await fetchWithTimeout(`${API_BASE}/suggest-stop?${params}`, ROUTE_TIMEOUT_MS, signal);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail ?? `Suggest-stop failed: ${res.status}`);
   }
   const data = await res.json();
-  // Backwards-compat: old backend returned { stop: ... }, new returns { stops: [...] }
-  if (!data.stops && data.stop !== undefined) {
-    data.stops = data.stop ? [data.stop] : [];
-  }
   data.stops ??= [];
   return data as SuggestStopResponse;
 }

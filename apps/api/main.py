@@ -1,8 +1,11 @@
 """FastAPI backend — API shield and cache layer for Detour."""
+import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 from fastapi.middleware.cors import CORSMiddleware
 
 from cache import (
@@ -71,8 +74,11 @@ _RING_MILES: dict[str, list[float]] = {
 }
 
 
+_area_inflight: dict[str, asyncio.Task] = {}
+
+
 @app.get("/api/area")
-async def get_area(origin: str | None = None, mode: str = "drive"):
+async def get_area(origin: str | None = None, mode: Literal["drive", "walk"] = "drive"):
     """Returns a GeoJSON FeatureCollection with three concentric isodistance rings.
     Ring distances are determined by mode: drive=1/3/5 mi, walk=0.5/1/2 mi.
     Accepts optional origin=lon,lat; defaults to configured origin."""
@@ -94,8 +100,23 @@ async def get_area(origin: str | None = None, mode: str = "drive"):
     if cached:
         return cached
 
+    if cache_key in _area_inflight:
+        try:
+            return await _area_inflight[cache_key]
+        except ValueError as e:
+            msg = str(e)
+            if "rate limited" in msg.lower():
+                raise HTTPException(status_code=429, detail=msg)
+            raise HTTPException(status_code=502, detail=msg)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Upstream routing error")
+
+    task: asyncio.Task = asyncio.create_task(
+        get_isodistance(origin_lon, origin_lat, distances_meters, profile)
+    )
+    _area_inflight[cache_key] = task
     try:
-        result = await get_isodistance(origin_lon, origin_lat, distances_meters, profile)
+        result = await task
     except ValueError as e:
         msg = str(e)
         if "rate limited" in msg.lower():
@@ -104,6 +125,8 @@ async def get_area(origin: str | None = None, mode: str = "drive"):
     except Exception:
         logger.exception("ORS isochrones error")
         raise HTTPException(status_code=502, detail="Upstream routing error")
+    finally:
+        _area_inflight.pop(cache_key, None)
 
     cache_set(cache_key, result)
     return result
@@ -129,8 +152,8 @@ async def get_route(
     to: str,
     origin: str | None = None,
     via: list[str] | None = Query(default=None),
-    miles: float | None = None,
-    mode: str = "drive",
+    miles: float | None = Query(default=None, gt=0, le=5),
+    mode: Literal["drive", "walk"] = "drive",
 ):
     """Returns shortest route from origin to destination and within-limit verdict.
     Accepts optional origin=lon,lat, repeated via=lon,lat waypoints, and mode=drive|walk."""
@@ -187,8 +210,8 @@ async def suggest_stop(
     origin: str,
     destination: str,
     category: str | None = None,
-    miles: float | None = None,
-    mode: str = "drive",
+    miles: float | None = Query(default=None, gt=0, le=5),
+    mode: Literal["drive", "walk"] = "drive",
 ):
     """Suggest the best nearby stop along the route from origin to destination."""
     try:
@@ -244,6 +267,79 @@ async def suggest_stop(
         source,
         len(stops),
     )
+
+    return {"stops": stops, "fallback": fallback}
+
+
+class SuggestStopBody(BaseModel):
+    origin: str
+    destination: str
+    category: str | None = None
+    miles: float | None = Field(default=None, gt=0, le=5)
+    mode: Literal["drive", "walk"] = "drive"
+    route_coordinates: list[tuple[float, float]] | None = None
+
+    @field_validator("route_coordinates")
+    @classmethod
+    def validate_route_coordinates(
+        cls, v: list[tuple[float, float]] | None
+    ) -> list[tuple[float, float]] | None:
+        if v is None:
+            return v
+        for lon, lat in v:
+            if not (-180 <= lon <= 180) or not (-90 <= lat <= 90):
+                raise ValueError(f"Coordinate out of range: [{lon}, {lat}]")
+        return v
+
+
+@app.post("/api/suggest-stop")
+async def suggest_stop_post(body: SuggestStopBody):
+    """Suggest stops along a route. Accepts pre-computed route_coordinates to skip the
+    internal ORS route call the GET variant makes. Falls back to the GET behavior when
+    route_coordinates is absent."""
+    try:
+        origin_lon, origin_lat = _parse_to_param(body.origin)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid origin: {e}")
+
+    try:
+        dest_lon, dest_lat = _parse_to_param(body.destination)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid destination: {e}")
+
+    limit_miles = body.miles if body.miles is not None else settings.DEFAULT_RANGE_MILES
+    suggest_profile = _mode_to_profile(body.mode)
+
+    if body.route_coordinates and len(body.route_coordinates) >= 2:
+        route_coords = body.route_coordinates
+    else:
+        try:
+            route_data = await get_shortest_route(
+                origin_lon, origin_lat, dest_lon, dest_lat,
+                limit_miles=limit_miles, profile=suggest_profile,
+            )
+        except ValueError as e:
+            msg = str(e)
+            if "no route" in msg.lower():
+                raise HTTPException(status_code=404, detail=msg)
+            raise HTTPException(status_code=502, detail=msg)
+        except Exception:
+            logger.exception("ORS directions error in suggest-stop (POST)")
+            raise HTTPException(status_code=502, detail="Upstream routing error")
+        route_coords = route_data["route"]["geometry"]["coordinates"]
+
+    ors_attempted = settings.USE_ORS_POIS and body.category in ORS_ELIGIBLE_CATEGORIES
+    stops: list[dict] = []
+    fallback = False
+
+    if ors_attempted:
+        candidates = await get_pois_along_route(route_coords, body.category)
+        stops = select_from_ors(candidates, route_coords)
+        if not stops:
+            fallback = True
+
+    if not stops:
+        stops = select_from_static(route_coords, body.category, mode=body.mode)
 
     return {"stops": stops, "fallback": fallback}
 
