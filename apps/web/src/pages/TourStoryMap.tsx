@@ -162,9 +162,13 @@ function chapterClass(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function TourStoryMap() {
+export function TourStoryMap({ tour: tourProp }: { tour?: TourDefinition }) {
   const { slug } = useParams<{ slug: string }>();
-  const [state, dispatch] = useReducer(tourReducer, { status: "loading" });
+  const [state, dispatch] = useReducer(
+    tourReducer,
+    undefined,
+    (): LoadState => tourProp ? { status: "ok", tour: tourProp } : { status: "loading" },
+  );
   const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
 
   // Narrative
@@ -192,6 +196,7 @@ export function TourStoryMap() {
   // ── Fetch ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (tourProp) return;
     if (!slug) return;
     let cancelled = false;
     dispatch({ status: "loading" });
@@ -204,7 +209,7 @@ export function TourStoryMap() {
         });
       });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, tourProp]);
 
   // ── Map init + scroll listener ──────────────────────────────────────────────
 
@@ -522,11 +527,14 @@ export function TourStoryMap() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const backTo = tourProp ? "/build" : "/tours";
+  const backLabel = tourProp ? "← Back to map" : "← Back to tours";
+
   if (state.status === "loading") {
     return (
       <div className="story-map story-map--loading">
-        <Link to="/tours" className="story-map__back-link">
-          ← Back to tours
+        <Link to={backTo} className="story-map__back-link">
+          {backLabel}
         </Link>
         <div className="map-loading">Loading tour…</div>
       </div>
@@ -536,13 +544,13 @@ export function TourStoryMap() {
   if (state.status === "error") {
     return (
       <div className="story-map story-map--error">
-        <Link to="/tours" className="story-map__back-link">
-          ← Back to tours
+        <Link to={backTo} className="story-map__back-link">
+          {backLabel}
         </Link>
         <div className="map-error">
           {state.message}
-          <Link to="/tours" style={{ marginLeft: "0.5rem" }}>
-            Browse tours
+          <Link to={backTo} style={{ marginLeft: "0.5rem" }}>
+            {tourProp ? "Back to map" : "Browse tours"}
           </Link>
         </div>
       </div>
@@ -556,8 +564,8 @@ export function TourStoryMap() {
     <div className="story-map">
       <div ref={progressBarRef} className="story-map__progress-bar" />
 
-      <Link to="/tours" className="story-map__back-link">
-        ← Back to tours
+      <Link to={backTo} className="story-map__back-link">
+        {backLabel}
       </Link>
 
       <div className="story-map__map-container">

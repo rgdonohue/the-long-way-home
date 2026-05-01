@@ -67,6 +67,7 @@ interface VerdictPanelProps {
   mode?: TravelMode;
   showAllStops?: boolean;
   onToggleShowAll?: (() => void) | null;
+  onPlayTour?: (() => void) | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -102,6 +103,7 @@ export function VerdictPanel({
   mode = "walk",
   showAllStops = false,
   onToggleShowAll = null,
+  onPlayTour = null,
 }: VerdictPanelProps) {
   const [copied, setCopied] = useState(false);
 
@@ -224,6 +226,19 @@ export function VerdictPanel({
         <p className="verdict-panel__note">
           Spots inside the shaded area can exceed {limit_miles} mi by road
         </p>
+      )}
+
+      {/* Play tour CTA — primary action when a detour route with stops exists */}
+      {!isLoading && !error && selectedStops.length >= 1 && onPlayTour && (
+        <div className="verdict-panel__play-cta">
+          <button
+            type="button"
+            className="verdict-panel__btn-primary"
+            onClick={onPlayTour}
+          >
+            ▶ Play tour
+          </button>
+        </div>
       )}
 
       {/* Comparison with shortest route (detour mode) */}

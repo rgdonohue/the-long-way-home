@@ -1512,6 +1512,31 @@ h1, h2, h3 {
   background: rgba(44, 24, 16, 0.05);
 }
 
+/* Primary CTA: filled terracotta (e.g. "▶ Play tour") */
+.verdict-panel__play-cta {
+  margin: 0.75rem 0 0.125rem;
+}
+
+.verdict-panel__btn-primary {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--terracotta);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.15s;
+}
+
+.verdict-panel__btn-primary:hover {
+  background: #b04e20;
+}
+
 /* Ghost action: text-only (e.g. "Reset map") */
 .verdict-panel__btn-ghost {
   padding: 0.4rem 0;

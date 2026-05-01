@@ -1,6 +1,7 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getConfig,
   getRoute,
@@ -10,6 +11,7 @@ import {
   type StopSuggestion,
   type TravelMode,
 } from "../lib/api";
+import { buildTourFromState } from "../lib/buildTour";
 import { useServiceArea } from "../hooks/useServiceArea";
 import { useRouteCheck, type RouteCheckResult } from "../hooks/useRouteCheck";
 import { VerdictPanel } from "./VerdictPanel";
@@ -104,6 +106,7 @@ function toRouteCheckResult(
 }
 
 export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
+  const navigate = useNavigate();
   const initialShareStateRef = useRef(parseShareableRouteState());
   const restoreStartedRef = useRef(false);
 
@@ -1212,6 +1215,21 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
     if (modeChangeRef) modeChangeRef.current = handleModeChange;
   }, [modeChangeRef, handleModeChange]);
 
+  const handlePlayTour = useCallback(() => {
+    if (!showingDetour || !detourResult || selectedStops.length === 0 || !origin || !destination) return;
+    const tour = buildTourFromState({
+      origin,
+      destination,
+      mode,
+      route: detourResult.route,
+      distance_miles: detourResult.distance_miles,
+      duration_seconds: detourResult.duration_seconds,
+      stops: selectedStops,
+    });
+    sessionStorage.setItem("detour:preview-tour", JSON.stringify(tour));
+    navigate("/tours/preview");
+  }, [showingDetour, detourResult, selectedStops, origin, destination, mode, navigate]);
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const stop of nearbyStops) {
@@ -1319,6 +1337,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
             onBackToShortest={showingDetour ? handleBackToShortest : null}
             showAllStops={showAllStops}
             onToggleShowAll={() => setShowAllStops((prev) => !prev)}
+            onPlayTour={showingDetour && detourResult && selectedStops.length >= 1 ? handlePlayTour : null}
           />
         )}
       </aside>
