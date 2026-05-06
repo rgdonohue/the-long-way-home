@@ -12,6 +12,7 @@ import {
   type TravelMode,
 } from "../lib/api";
 import { buildTourFromState } from "../lib/buildTour";
+import { optimizeStopOrder } from "../lib/optimizeStops";
 import { useServiceArea } from "../hooks/useServiceArea";
 import { useRouteCheck, type RouteCheckResult } from "../hooks/useRouteCheck";
 import { VerdictPanel } from "./VerdictPanel";
@@ -68,27 +69,6 @@ function minRouteDistanceMiles(coord: [number, number], routeCoords: number[][])
   }
   // Convert degrees to miles (1 degree latitude ≈ 69.0 miles)
   return bestDist * 69.0;
-}
-
-/** Index of the closest route vertex to a coordinate (squared Euclidean — fine for sorting). */
-function closestRouteIndex(coord: [number, number], routeCoords: number[][]): number {
-  let bestIdx = 0, bestDist = Infinity;
-  for (let i = 0; i < routeCoords.length; i++) {
-    const dx = coord[0] - routeCoords[i][0];
-    const dy = coord[1] - routeCoords[i][1];
-    const d = dx * dx + dy * dy;
-    if (d < bestDist) { bestDist = d; bestIdx = i; }
-  }
-  return bestIdx;
-}
-
-/** Sort stops by their position along a route, preserving geographic order. */
-function sortByRoutePosition(stops: StopSuggestion[], routeCoords: number[][]): StopSuggestion[] {
-  return [...stops].sort(
-    (a, b) =>
-      closestRouteIndex(a.coordinates, routeCoords) -
-      closestRouteIndex(b.coordinates, routeCoords),
-  );
 }
 
 function toRouteCheckResult(
@@ -806,7 +786,7 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
 
         if (toRestore.length === 0) return;
 
-        const sorted = sortByRoutePosition(toRestore, shortest.route.geometry.coordinates);
+        const sorted = optimizeStopOrder(originCoord, destinationCoord, toRestore);
         setSelectedStops(sorted);
 
         detourRequestRef.current += 1;
@@ -981,9 +961,10 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
       if (!origin || !destination || !result) return;
 
       const isSelected = selectedStops.some((s) => s.name === stop.name);
-      const newSelected = isSelected
+      const nextStops = isSelected
         ? selectedStops.filter((s) => s.name !== stop.name)
-        : sortByRoutePosition([...selectedStops, stop], result.route.geometry.coordinates);
+        : [...selectedStops, stop];
+      const newSelected = optimizeStopOrder(origin, destination, nextStops);
 
       setSelectedStops(newSelected);
 
@@ -1175,8 +1156,8 @@ export function Map({ resetRef, modeChangeRef, mode, onModeChange }: MapProps) {
             return;
           }
 
-          // Re-sort stops by new route geometry and recompute multi-stop route
-          const sorted = sortByRoutePosition(stopsToRestore, data.route.geometry.coordinates);
+          // Recompute multi-stop route for the new mode; stop order is mode-independent.
+          const sorted = optimizeStopOrder(origin, destination, stopsToRestore);
           setSelectedStops(sorted);
           detourRequestRef.current += 1;
           const reqId = detourRequestRef.current;

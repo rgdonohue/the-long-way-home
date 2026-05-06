@@ -2,129 +2,75 @@
 
 **routes shaped by place — a routing experiment built first in Santa Fe.**
 
-Detour is a web mapping prototype that finds the **shortest route** between two points — by foot or by car — and then asks: *is there somewhere worth stopping along the way?*
+![Detour build mode in Santa Fe](map.png)
 
-Set an origin and a destination by clicking the map. The app draws the baseline route, reports distance and time, and surfaces up to five nearby stops from a curated local place dataset. Pick one and the map reroutes through it, showing exactly how many extra miles and minutes the detour adds.
-
-This project started as a simple network-distance map. It has since evolved into a small spatial UX experiment: **what happens when routing is shaped not only by efficiency, but also by place?**
-
----
+Detour is a Santa Fe-first routing prototype for building place-aware routes: start with the shortest walking or driving path, surface curated nearby stops, and show the distance/time cost of making the route more interesting. It is built as a small full-stack product slice, with real routing calls, shareable state, curated POI data, and a tour-viewing surface.
 
 ## Why this exists
 
-Most routing interfaces optimize for speed, distance, or convenience. That makes sense, but it leaves out another dimension of movement: **meaning**.
+Detour is now aimed first at people who create visitor experiences: professional tour guides, hotel concierges, and tourism bureaus. Visitors are the downstream users who receive, preview, or follow the routes those professionals shape.
 
-Detour explores a different interaction pattern:
-
-- show the shortest route
-- surface nearby stops with local value
-- make the tradeoff explicit
-- let the user decide whether the detour is worth it
-
-The current build uses Santa Fe as its first case study because it is compact, visually legible, and culturally rich enough to support this idea with a lightweight curated dataset. The broader concept is extensible beyond Santa Fe.
-
----
+Shortest route, or route worth taking?
 
 ## What the app does
 
-### Interaction flow
+### Build
 
-1. **Click once to set an origin** — three concentric distance rings appear, drawn from the actual street or trail network for the current mode
-2. **Click again to set a destination**
-3. The app draws the **shortest route** (driving or walking)
-4. The panel shows route distance and estimated travel time
-5. The app surfaces **up to five nearby stops** along the route from the current category filter — all plotted on the map
-6. Click any number of stops in the list or on the map to build a multi-stop itinerary; the panel shows the added distance and time versus the direct route
-7. Switch back to the shortest route at any time
-8. The full state can be shared through the URL
+`/build` is the route-building surface. Click once for an origin and again for a destination; the app requests the OpenRouteService shortest route, supports drive/walk mode, shows network-distance rings, suggests curated route-adjacent stops, and reroutes through selected waypoints.
 
-### Controls
+Selected stops can be added from the list or map, and their visit order is automatically optimized before the multi-stop route is requested. Origin, destination, mode, category filters, and via-stop coordinates are kept in the URL so a route can be refreshed or shared.
 
-- **Drive / Walk toggle** — switches the routing profile and redraws the distance rings for the relevant scale (drive: 1 / 3 / 5 mi · walk: 0.5 / 1 / 2 mi)
-- **Stop categories:** Any, History, Art, Scenic, Culture, Landmark
-- **Reset:** clear the route and start over from the header
+### Explore
 
----
+`/` currently renders the Explore surface. It shows the curated Santa Fe place layer before a route has been built, using the same local POI data that powers current Build-mode suggestions.
 
-## What makes it interesting
+### Tour
 
-This is **not** a full trip planner or a live POI search engine.
+`/tours` lists pre-built gallery tours, `/tours/:slug` renders a scrollytelling tour map, and `/tours/preview` plays a Build-mode route preview stored in `sessionStorage`. This is the exploratory surface for turning a planned route into something a visitor can consume.
 
-It is a deliberately small, opinionated prototype that combines:
+## Notable engineering decisions
 
-- **network-aware routing** — via OpenRouteService for both driving and walking
-- **real isochrone rings** — three concentric reachability rings, not geometric circles, drawn from the actual road and trail network
-- **multi-stop discovery** — up to five route-adjacent stops plotted simultaneously
-- **budget-aware detour logic** — detour cost shown as delta miles and minutes
-- **curated local place selection**
-- **shareable route state**
-- **a map-first interaction model**
-
-The goal is not to overwhelm the user with options. The goal is to test whether **a small set of good suggestions with a clear cost** can be more compelling than a generic list.
-
----
-
-## Tech stack
-
-### Frontend
-
-- **React**
-- **TypeScript**
-- **Vite**
-- **MapLibre GL JS**
-
-### Backend
-
-- **FastAPI**
-- **Python 3.11**
-- **OpenRouteService API**
-
-### Data / logic
-
-- Curated local place dataset for route-adjacent stop suggestions
-- ORS-backed shortest-path routing (`preference="shortest"`) for both `driving-car` and `foot-walking` profiles
-- ORS isochrone API for multi-ring service areas (single request, multiple ranges)
-- URL-synced app state for shareable map views
-
-### Deployment
-
-Monorepo deployed as two services:
-
-```text
-apps/web   → frontend
-apps/api   → backend
-```
-
----
+- **Stop ordering as a small TSP:** `optimizeStopOrder` builds a haversine distance matrix and brute-forces the optimal order for up to 9 selected stops, then falls back to nearest-neighbor above that threshold.
+- **Single-call multi-range isochrones:** the backend requests all service-area rings from ORS in one `/v2/isochrones/{profile}` call.
+- **URL as shareable state:** Build-mode map state is encoded in query params rather than hidden in client memory.
+- **Scrollytelling without a framework:** the Tour surface is a custom React/MapLibre page, keeping the interaction model close to the product needs.
+- **Mock-mode dev fallback:** missing `ORS_API_KEY` returns predictable mock route and isochrone shapes so the app can still be developed locally.
+- **Server-side cache for area rings:** `/api/area` responses use TTL caching, with disk persistence for area GeoJSON, to reduce repeated isochrone calls.
+- **Polygon tooling kept separate:** route-based polygon cache helpers exist, but they are not wired into the normal interactive `/api/area` flow.
 
 ## Architecture at a glance
 
 ```text
-apps/
-  web/   → React + MapLibre frontend
-  api/   → FastAPI backend, ORS integration
+Browser --> Vite dev proxy --> FastAPI --+--> OpenRouteService directions + isochrones
+                                         +--> Curated POI/tour data
+                                         +--> TTL cache for area rings
 ```
 
-### Frontend responsibilities
+```text
+apps/
+  web/   React + TypeScript + Vite + MapLibre
+  api/   FastAPI backend, ORS client, curated POI/tour loaders
+docs/    deployment notes, UX direction, technical notes, seed data
+cache/   persisted area-ring GeoJSON when generated locally
+```
 
-- map rendering and click-to-set interaction flow
-- concentric isochrone ring display (three rings per origin, no fill)
-- route and detour display
-- multi-stop marker management and hover tooltips
-- stop-category filtering
-- Drive / Walk mode toggle with in-place re-routing
-- URL state sync / restore
+## Tech stack
 
-### Backend responsibilities
+- **Frontend:** React, TypeScript, Vite, MapLibre GL JS.
+- **Backend:** FastAPI, Python 3.11, with pytest-based API utility tests.
+- **Routing:** ORS directions endpoint `/v2/directions/{profile}/geojson`, using `preference="shortest"` for `driving-car` and `foot-walking`.
+- **Isochrones:** ORS endpoint `/v2/isochrones/{profile}`, requesting multiple distance ranges in one call.
+- **POIs:** an ORS `/pois` wrapper exists, but live ORS POI selection is currently disabled; current Explore and Build POIs come from curated/static Santa Fe data.
+- **Basemaps:** CARTO raster tiles in Build and Explore; OpenFreeMap Positron in `TourStoryMap`.
 
-- route requests to OpenRouteService (driving and walking)
-- shortest-route and via-stop route calculation
-- multi-range isochrone generation (one ORS call returns all three rings)
-- stop suggestion from ORS POI API + curated static fallback
-- environment config management
-- dev fallback behavior when no API key is present
+## Repo tour
 
----
+- [apps/web/src/components/Map.tsx](apps/web/src/components/Map.tsx) - Build-mode map, click-to-route flow, stop selection, URL state, and preview launch.
+- [apps/web/src/pages/TourStoryMap.tsx](apps/web/src/pages/TourStoryMap.tsx) - scrollytelling tour viewer.
+- [apps/web/src/lib/optimizeStops.ts](apps/web/src/lib/optimizeStops.ts) - selected-stop order optimization.
+- [apps/api/main.py](apps/api/main.py) - FastAPI routes for config, area rings, routes, stop suggestions, POIs, and tours.
+- [apps/api/ors_client.py](apps/api/ors_client.py) - ORS directions and isochrone client with mock fallback behavior.
+- [docs/UX_DIRECTION.md](docs/UX_DIRECTION.md) - product direction, personas, and roadmap options.
 
 ## Running locally
 
@@ -168,57 +114,49 @@ Runs at: `http://localhost:8000`
 
 In local development, Vite proxies `/api` requests to the backend.
 
----
-
 ## Shareable URL state
 
-The app keeps key route state in the URL so a route can be refreshed or shared directly.
+The Build surface keeps key route state in the URL so a route can be refreshed or shared directly.
 
 Current shared state includes:
 
 - origin
 - destination
-- stop category
-- selected stop coordinates (via waypoints)
-- travel mode (walk is the default)
+- stop category filters
+- selected stop coordinates via `via`
+- travel mode
 
 Example:
 
 ```text
-?origin=-105.9394,35.687&destination=-105.944,35.683&category=art&mode=walk
+?origin=-105.9394,35.687&destination=-105.944,35.683&category=art&via=-105.941,35.685&mode=walk
 ```
-
----
 
 ## Deployment
 
 The project is deployed as two Railway services from the same monorepo.
 
-See [docs/DEPLOY.md](docs/DEPLOY.md) for deployment details.
+```text
+apps/web   -> frontend
+apps/api   -> backend
+```
 
----
+See [docs/DEPLOY.md](docs/DEPLOY.md) for deployment details.
 
 ## Current limitations
 
-- Place suggestions come from a **small curated static dataset**, not a live search or POI API
-- No **text search / geocoder**
-- Without a valid OpenRouteService API key, the backend falls back to **mock responses** for development
-- Seeded for **Santa Fe first**, though the concept is designed to scale
-
----
+- No text search or geocoder for route endpoints.
+- No auth, accounts, saved tours, or durable user-owned route persistence.
+- Current POI surfaces use curated/static Santa Fe data rather than external search APIs.
+- The product and dataset are seeded for Santa Fe first.
+- Without a valid OpenRouteService API key, the backend returns mock responses for development.
 
 ## Project direction
 
-Detour is a **Santa Fe-first prototype** for a broader idea:
+The current product direction targets professional visitor-experience planning for Santa Fe tour guides, hotel concierges, and tourism bureaus.
 
-> routing that balances efficiency with cultural, scenic, or local meaning.
-
-The current product direction targets the Santa Fe tour guide and tourism industry. See [docs/UX_DIRECTION.md](docs/UX_DIRECTION.md) for personas, feature brainstorm, and roadmap options.
-
----
+See [docs/UX_DIRECTION.md](docs/UX_DIRECTION.md) for personas, feature brainstorm, and roadmap options.
 
 ## Status
 
-Active prototype. Built to explore a product question, not just a routing feature.
-
-**Shortest route, or route worth taking?**
+Active Santa Fe-first prototype. Build and Explore are functional map surfaces, Tour is an exploratory scrollytelling surface, and the next obvious product gaps are search, auth, and persistence rather than core routing.
